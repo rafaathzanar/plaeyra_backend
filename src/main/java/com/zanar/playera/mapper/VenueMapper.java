@@ -12,7 +12,7 @@ public class VenueMapper {
     venue.setLocation(dto.getLocation());
     venue.setDescription(dto.getDescription());
     venue.setContactNo(dto.getContactNo());
-    venue.setOwner(owner);
+    venue.setVenueOwner(owner);
     return venue;
   }
 
@@ -23,9 +23,9 @@ public class VenueMapper {
     dto.setLocation(venue.getLocation());
     dto.setDescription(venue.getDescription());
     dto.setContactNo(venue.getContactNo());
-    if (venue.getOwner() != null) {
-      dto.setOwnerId(venue.getOwner().getUserId());
-      dto.setOwnerName(venue.getOwner().getName());
+    if (venue.getVenueOwner() != null) {
+      dto.setOwnerId(venue.getVenueOwner().getUserId());
+      dto.setOwnerName(venue.getVenueOwner().getName());
     }
     return dto;
   }

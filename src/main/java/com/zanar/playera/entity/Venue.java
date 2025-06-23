@@ -28,7 +28,7 @@ public class Venue {
 
     @ManyToOne
     @JoinColumn(name = "owner_id")
-    private VenueOwner owner;
+    private VenueOwner venueOwner;
 
     // Getters, Setters, Constructors
 }

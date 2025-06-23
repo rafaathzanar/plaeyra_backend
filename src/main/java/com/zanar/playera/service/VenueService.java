@@ -39,7 +39,7 @@ public class VenueService {
 
   public List<VenueResponseDTO> listVenuesByOwner(Long ownerId) {
     return venueRepository.findAll().stream()
-        .filter(v -> v.getOwner() != null && v.getOwner().getUserId().equals(ownerId))
+        .filter(v -> v.getVenueOwner() != null && v.getVenueOwner().getUserId().equals(ownerId))
         .map(VenueMapper::toVenueResponseDTO)
         .collect(Collectors.toList());
   }
