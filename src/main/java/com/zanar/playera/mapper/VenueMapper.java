@@ -1,0 +1,32 @@
+package com.zanar.playera.mapper;
+
+import com.zanar.playera.dto.VenueRequestDTO;
+import com.zanar.playera.dto.VenueResponseDTO;
+import com.zanar.playera.entity.Venue;
+import com.zanar.playera.entity.VenueOwner;
+
+public class VenueMapper {
+  public static Venue toVenueEntity(VenueRequestDTO dto, VenueOwner owner) {
+    Venue venue = new Venue();
+    venue.setName(dto.getName());
+    venue.setLocation(dto.getLocation());
+    venue.setDescription(dto.getDescription());
+    venue.setContactNo(dto.getContactNo());
+    venue.setOwner(owner);
+    return venue;
+  }
+
+  public static VenueResponseDTO toVenueResponseDTO(Venue venue) {
+    VenueResponseDTO dto = new VenueResponseDTO();
+    dto.setVenueId(venue.getVenueId());
+    dto.setName(venue.getName());
+    dto.setLocation(venue.getLocation());
+    dto.setDescription(venue.getDescription());
+    dto.setContactNo(venue.getContactNo());
+    if (venue.getOwner() != null) {
+      dto.setOwnerId(venue.getOwner().getUserId());
+      dto.setOwnerName(venue.getOwner().getName());
+    }
+    return dto;
+  }
+}
