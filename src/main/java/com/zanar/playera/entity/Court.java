@@ -1,19 +1,32 @@
 package com.zanar.playera.entity;
 
 import jakarta.persistence.*;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "courts")
 public class Court {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long courtId;
 
     @Column(nullable = false)
-    private String name;
+    private String courtName;
+
+    @Column(nullable = false)
+    private String type;
+
+    @Column(nullable = false)
+    private int capacity;
+
+    @Column(nullable = false)
+    private double pricePerHour;
 
     @ManyToOne
     @JoinColumn(name = "venue_id", nullable = false)
@@ -23,19 +36,19 @@ public class Court {
     private List<Slot> slots = new ArrayList<>();
 
     public Long getId() {
-        return id;
+        return courtId;
     }
 
     public void setId(Long id) {
-        this.id = id;
+        this.courtId = id;
     }
 
     public String getName() {
-        return name;
+        return courtName;
     }
 
     public void setName(String name) {
-        this.name = name;
+        this.courtName = name;
     }
 
     public Venue getVenue() {
