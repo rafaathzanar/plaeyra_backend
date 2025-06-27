@@ -269,4 +269,32 @@ public class BookingService {
         booking.setBookingStatus("REFUNDED");
         bookingRepository.save(booking);
     }
+
+    public List<Booking> getPastBookingsByCustomer(Long customerId) {
+        return bookingRepository.findAll().stream()
+                .filter(b -> b.getCustomer() != null && b.getCustomer().getUserId().equals(customerId))
+                .filter(b -> b.getBookingDate() != null && b.getBookingDate().isBefore(java.time.LocalDateTime.now()))
+                .toList();
+    }
+
+    public List<Booking> getUpcomingBookingsByCustomer(Long customerId) {
+        return bookingRepository.findAll().stream()
+                .filter(b -> b.getCustomer() != null && b.getCustomer().getUserId().equals(customerId))
+                .filter(b -> b.getBookingDate() != null && b.getBookingDate().isAfter(java.time.LocalDateTime.now()))
+                .toList();
+    }
+
+    public List<Booking> getBookingsByCustomerAndVenue(Long customerId, Long venueId) {
+        return bookingRepository.findAll().stream()
+                .filter(b -> b.getCustomer() != null && b.getCustomer().getUserId().equals(customerId))
+                .filter(b -> b.getBookingCourts() != null && b.getBookingCourts().stream().anyMatch(bc -> bc.getCourt().getVenue() != null && bc.getCourt().getVenue().getVenueId().equals(venueId)))
+                .toList();
+    }
+
+    public List<Booking> getBookingsByCustomerAndDate(Long customerId, java.time.LocalDate date) {
+        return bookingRepository.findAll().stream()
+                .filter(b -> b.getCustomer() != null && b.getCustomer().getUserId().equals(customerId))
+                .filter(b -> b.getBookingDate() != null && b.getBookingDate().toLocalDate().equals(date))
+                .toList();
+    }
 }
