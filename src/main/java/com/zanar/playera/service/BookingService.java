@@ -43,6 +43,12 @@ public class BookingService {
     @Autowired
     private PaymentService paymentService;
 
+    @Autowired
+    private VenueRepository venueRepository;
+
+    @Autowired
+    private PaymentRepository paymentRepository;
+
     public BookingResponseDTO createBooking(BookingRequestDTO dto) {
         // Validate customer exists
         Customer customer = (Customer) userRepository.findById(dto.getCustomerId())
@@ -233,5 +239,34 @@ public class BookingService {
             slot.release();
             slotRepository.save(slot);
         }
+    }
+
+    public List<Booking> getCancelledBookingsByOwner(Long ownerId) {
+        // Find all venues owned by the owner
+        List<Long> venueIds = venueRepository.findAll().stream()
+                .filter(v -> v.getVenueOwner() != null && v.getVenueOwner().getUserId().equals(ownerId))
+                .map(Venue::getVenueId)
+                .toList();
+        // Find all bookings for those venues that are cancelled
+        return bookingRepository.findAll().stream()
+                .filter(b -> "CANCELLED".equalsIgnoreCase(b.getBookingStatus()) &&
+                        b.getBookingCourts() != null &&
+                        b.getBookingCourts().stream().anyMatch(bc -> bc.getCourt().getVenue() != null && venueIds.contains(bc.getCourt().getVenue().getVenueId())))
+                .toList();
+    }
+
+    public void processRefundForCancelledBooking(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+        if (!"CANCELLED".equalsIgnoreCase(booking.getBookingStatus())) {
+            throw new RuntimeException("Booking is not cancelled");
+        }
+        if (booking.getPayment() != null) {
+            booking.getPayment().setStatus("REFUNDED");
+            paymentRepository.save(booking.getPayment());
+        }
+        // Optionally, update booking status to indicate refund processed
+        booking.setBookingStatus("REFUNDED");
+        bookingRepository.save(booking);
     }
 }
