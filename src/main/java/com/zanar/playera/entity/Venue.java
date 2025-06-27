@@ -19,9 +19,18 @@ public class Venue {
     @Column(nullable = false)
     private String name;
 
+    @Column(nullable = false)
+    private String address;
+
     private String location;
     private String description;
     private String contactNo;
+
+    @ElementCollection
+    private List<String> images = new ArrayList<>();
+
+    @ElementCollection
+    private List<String> amenities = new ArrayList<>();
 
     @OneToMany(mappedBy = "venue", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Court> courts = new ArrayList<>();

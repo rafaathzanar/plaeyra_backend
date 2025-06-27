@@ -21,6 +21,14 @@ public class VenueService {
   private UserRepository userRepository;
 
   public VenueResponseDTO createVenue(VenueRequestDTO dto) {
+    // Validate mandatory fields
+    if (dto.getName() == null || dto.getName().isBlank()) {
+      throw new RuntimeException("Venue name is required");
+    }
+    if (dto.getAddress() == null || dto.getAddress().isBlank()) {
+      throw new RuntimeException("Venue address is required");
+    }
+    // Only allow venue owners to create venues
     VenueOwner owner = (VenueOwner) userRepository.findById(dto.getOwnerId())
         .orElseThrow(() -> new RuntimeException("Owner not found"));
     Venue venue = VenueMapper.toVenueEntity(dto, owner);
@@ -45,11 +53,19 @@ public class VenueService {
   }
 
   public VenueResponseDTO updateVenue(Long id, VenueRequestDTO dto) {
-    Venue venue = venueRepository.findById(id).orElseThrow(() -> new RuntimeException("Venue not found"));
-    venue.setName(dto.getName());
-    venue.setLocation(dto.getLocation());
-    venue.setDescription(dto.getDescription());
-    venue.setContactNo(dto.getContactNo());
+    Venue venue = venueRepository.findById(id)
+        .orElseThrow(() -> new RuntimeException("Venue not found"));
+    // Only allow the owner to update
+    if (venue.getVenueOwner() == null || !venue.getVenueOwner().getUserId().equals(dto.getOwnerId())) {
+      throw new RuntimeException("You are not authorized to update this venue");
+    }
+    if (dto.getName() != null && !dto.getName().isBlank()) venue.setName(dto.getName());
+    if (dto.getAddress() != null && !dto.getAddress().isBlank()) venue.setAddress(dto.getAddress());
+    if (dto.getLocation() != null) venue.setLocation(dto.getLocation());
+    if (dto.getDescription() != null) venue.setDescription(dto.getDescription());
+    if (dto.getContactNo() != null) venue.setContactNo(dto.getContactNo());
+    if (dto.getImages() != null) venue.setImages(dto.getImages());
+    if (dto.getAmenities() != null) venue.setAmenities(dto.getAmenities());
     Venue saved = venueRepository.save(venue);
     return VenueMapper.toVenueResponseDTO(saved);
   }

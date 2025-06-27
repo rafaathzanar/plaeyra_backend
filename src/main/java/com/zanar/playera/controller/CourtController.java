@@ -31,13 +31,13 @@ public class CourtController {
   }
 
   @PostMapping
-  public ResponseEntity<CourtResponseDTO> createCourt(@RequestBody CourtRequestDTO dto) {
-    return ResponseEntity.ok(courtService.createCourt(dto));
+  public ResponseEntity<CourtResponseDTO> createCourt(@RequestBody CourtRequestDTO dto, @RequestParam Long ownerId) {
+    return ResponseEntity.ok(courtService.createCourt(dto, ownerId));
   }
 
   @PutMapping("/{id}")
-  public ResponseEntity<CourtResponseDTO> updateCourt(@PathVariable Long id, @RequestBody CourtRequestDTO dto) {
-    return ResponseEntity.ok(courtService.updateCourt(id, dto));
+  public ResponseEntity<CourtResponseDTO> updateCourt(@PathVariable Long id, @RequestBody CourtRequestDTO dto, @RequestParam Long ownerId) {
+    return ResponseEntity.ok(courtService.updateCourt(id, dto, ownerId));
   }
 
   @DeleteMapping("/{id}")
