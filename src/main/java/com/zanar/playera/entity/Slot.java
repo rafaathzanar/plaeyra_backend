@@ -1,12 +1,15 @@
 package com.zanar.playera.entity;
 
-
 import jakarta.persistence.*;
-
+import lombok.*;
+import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Entity
 @Table(name = "slots")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class Slot {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -17,6 +20,9 @@ public class Slot {
     private Court court;
 
     @Column(nullable = false)
+    private LocalDate date;
+
+    @Column(nullable = false)
     private LocalTime startTime;
 
     @Column(nullable = false)
@@ -25,47 +31,42 @@ public class Slot {
     @Enumerated(EnumType.STRING)
     private SlotStatus status = SlotStatus.AVAILABLE;
 
+    @ManyToOne
+    @JoinColumn(name = "booking_id")
+    private Booking booking;
+
     public enum SlotStatus {
-        AVAILABLE, BOOKED
+        AVAILABLE, BOOKED, RESERVED, MAINTENANCE
     }
 
-    public Long getId() {
-        return id;
+    // Helper methods
+    public boolean isAvailable() {
+        return status == SlotStatus.AVAILABLE;
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    public boolean isBooked() {
+        return status == SlotStatus.BOOKED;
     }
 
-    public Court getCourt() {
-        return court;
+    public boolean isReserved() {
+        return status == SlotStatus.RESERVED;
     }
 
-    public void setCourt(Court court) {
-        this.court = court;
+    public boolean isUnderMaintenance() {
+        return status == SlotStatus.MAINTENANCE;
     }
 
-    public LocalTime getStartTime() {
-        return startTime;
+    public void book(Booking booking) {
+        this.booking = booking;
+        this.status = SlotStatus.BOOKED;
     }
 
-    public void setStartTime(LocalTime startTime) {
-        this.startTime = startTime;
+    public void release() {
+        this.booking = null;
+        this.status = SlotStatus.AVAILABLE;
     }
 
-    public LocalTime getEndTime() {
-        return endTime;
-    }
-
-    public void setEndTime(LocalTime endTime) {
-        this.endTime = endTime;
-    }
-
-    public SlotStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(SlotStatus status) {
-        this.status = status;
+    public void reserve() {
+        this.status = SlotStatus.RESERVED;
     }
 }
