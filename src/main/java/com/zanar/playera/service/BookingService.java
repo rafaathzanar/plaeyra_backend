@@ -108,21 +108,32 @@ public class BookingService {
                 Equipment equipment = equipmentRepository.findById(equipmentBooking.getEquipmentId())
                         .orElseThrow(() -> new RuntimeException("Equipment not found: " + equipmentBooking.getEquipmentId()));
                 
-                if (equipment.getAvailableQuantity() < equipmentBooking.getQuantity()) {
-                    throw new RuntimeException("Not enough equipment available: " + equipment.getName());
+                // Validate equipment availability and rental requirements
+                if (!equipment.canRent(equipmentBooking.getQuantity(), equipmentBooking.getTimeDuration())) {
+                    throw new RuntimeException("Equipment " + equipment.getName() + " is not available for the requested rental");
                 }
                 
+                // Calculate costs
+                double unitPrice = equipment.getRatePerHour();
+                double totalPrice = equipment.calculateRentalCost(equipmentBooking.getQuantity(), equipmentBooking.getTimeDuration());
+                double depositAmount = equipment.calculateDeposit(equipmentBooking.getQuantity());
+                
+                // Create booking equipment record
                 BookingEquipment bookingEquipment = new BookingEquipment();
                 bookingEquipment.setBooking(booking);
                 bookingEquipment.setEquipment(equipment);
                 bookingEquipment.setQuantity(equipmentBooking.getQuantity());
                 bookingEquipment.setTimeDuration(equipmentBooking.getTimeDuration());
+                bookingEquipment.setUnitPrice(unitPrice);
+                bookingEquipment.setTotalPrice(totalPrice);
+                bookingEquipment.setDepositAmount(depositAmount);
+                bookingEquipment.setStatus(BookingEquipment.RentalStatus.RENTED);
                 bookingEquipments.add(bookingEquipment);
                 
-                totalEquipmentCost += equipment.getRatePerHour() * equipmentBooking.getQuantity() * equipmentBooking.getTimeDuration();
+                totalEquipmentCost += totalPrice;
                 
-                // Update equipment availability
-                equipment.setAvailableQuantity(equipment.getAvailableQuantity() - equipmentBooking.getQuantity());
+                // Reserve equipment (reduce available quantity)
+                equipment.reserve(equipmentBooking.getQuantity());
                 equipmentRepository.save(equipment);
             }
         }
@@ -173,21 +184,28 @@ public class BookingService {
             slotRepository.save(slot);
         }
         
-        // Restore equipment quantities
+        // Restore equipment quantities and process refunds
         if (booking.getBookingEquipments() != null) {
             for (BookingEquipment bookingEquipment : booking.getBookingEquipments()) {
                 Equipment equipment = bookingEquipment.getEquipment();
-                equipment.setAvailableQuantity(equipment.getAvailableQuantity() + bookingEquipment.getQuantity());
+                
+                // Release equipment back to available inventory
+                equipment.release(bookingEquipment.getQuantity());
                 equipmentRepository.save(equipment);
+                
+                // Mark equipment as returned for refund processing
+                bookingEquipment.markAsReturned();
+                bookingEquipmentRepository.save(bookingEquipment);
+                
+                // TODO: Process refund based on venue-specific policies
+                // This would integrate with PaymentService for actual refund processing
+                // Refund amount could be calculated based on cancellation time and policies
             }
         }
         
         // Update booking status
         booking.setBookingStatus("CANCELLED");
         bookingRepository.save(booking);
-        
-        // TODO: Process refund based on venue-specific policies
-        // This would integrate with PaymentService for actual refund processing
     }
     
     // New methods for real-time availability

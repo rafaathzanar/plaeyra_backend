@@ -27,7 +27,15 @@ public class BookingResponseDTO {
   public static class EquipmentBookingDTO {
     private Long equipmentId;
     private String name;
+    private String description;
     private int quantity;
     private int timeDuration;
+    private double unitPrice;
+    private double totalPrice;
+    private double depositAmount;
+    private String rentalStatus;
+    private LocalDateTime returnDate;
+    private String returnNotes;
+    private boolean isReturned;
   }
 }

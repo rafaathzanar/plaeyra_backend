@@ -37,8 +37,16 @@ public class BookingMapper {
         BookingResponseDTO.EquipmentBookingDTO eqdto = new BookingResponseDTO.EquipmentBookingDTO();
         eqdto.setEquipmentId(be.getEquipment().getEquipmentId());
         eqdto.setName(be.getEquipment().getName());
+        eqdto.setDescription(be.getEquipment().getDescription());
         eqdto.setQuantity(be.getQuantity());
         eqdto.setTimeDuration(be.getTimeDuration());
+        eqdto.setUnitPrice(be.getUnitPrice());
+        eqdto.setTotalPrice(be.getTotalPrice());
+        eqdto.setDepositAmount(be.getDepositAmount());
+        eqdto.setRentalStatus(be.getStatus().name());
+        eqdto.setReturnDate(be.getReturnDate());
+        eqdto.setReturnNotes(be.getReturnNotes());
+        eqdto.setIsReturned(be.isReturned());
         return eqdto;
       }).collect(Collectors.toList());
       dto.setEquipmentBookings(eqDTOs);
