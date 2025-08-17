@@ -56,8 +56,9 @@ public class VenueOwner extends User {
     @OneToMany(mappedBy = "venueOwner", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Venue> venues = new ArrayList<>();
 
-    @OneToMany(mappedBy = "venueOwner", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Review> reviews = new ArrayList<>();
+    // Reviews are accessed through venues, not directly
+    // @OneToMany(mappedBy = "venueOwner", cascade = CascadeType.ALL, orphanRemoval = true)
+    // private List<Review> reviews = new ArrayList<>();
 
     public enum VerificationStatus {
         PENDING, VERIFIED, REJECTED, SUSPENDED

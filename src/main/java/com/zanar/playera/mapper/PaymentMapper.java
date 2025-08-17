@@ -1,10 +1,13 @@
 package com.zanar.playera.mapper;
 
+import org.springframework.stereotype.Component;
+
 import com.zanar.playera.dto.PaymentRequestDTO;
 import com.zanar.playera.dto.PaymentResponseDTO;
 import com.zanar.playera.entity.Payment;
 import java.time.LocalDateTime;
 
+@Component
 public class PaymentMapper {
   public static Payment toPaymentEntity(PaymentRequestDTO dto) {
     Payment payment = new Payment();

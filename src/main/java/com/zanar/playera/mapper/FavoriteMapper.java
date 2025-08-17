@@ -1,11 +1,14 @@
 package com.zanar.playera.mapper;
 
+import org.springframework.stereotype.Component;
+
 import com.zanar.playera.dto.FavoriteRequestDTO;
 import com.zanar.playera.dto.FavoriteResponseDTO;
 import com.zanar.playera.entity.Customer;
 import com.zanar.playera.entity.Favorite;
 import com.zanar.playera.entity.Venue;
 
+@Component
 public class FavoriteMapper {
   public static Favorite toFavoriteEntity(FavoriteRequestDTO dto, Customer customer, Venue venue) {
     Favorite favorite = new Favorite();

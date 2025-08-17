@@ -1,11 +1,14 @@
 package com.zanar.playera.mapper;
 
+import org.springframework.stereotype.Component;
+
 import com.zanar.playera.dto.UserRegistrationDTO;
 import com.zanar.playera.dto.UserResponseDTO;
 import com.zanar.playera.entity.Customer;
 import com.zanar.playera.entity.User;
 import com.zanar.playera.entity.VenueOwner;
 
+@Component
 public class UserMapper {
   public static User toUserEntity(UserRegistrationDTO dto) {
     if (dto.getUserType() != null && dto.getUserType().equalsIgnoreCase("CUSTOMER")) {

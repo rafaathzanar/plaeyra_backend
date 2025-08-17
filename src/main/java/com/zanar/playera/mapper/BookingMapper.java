@@ -4,10 +4,12 @@ import com.zanar.playera.dto.BookingResponseDTO;
 import com.zanar.playera.entity.Booking;
 import com.zanar.playera.entity.BookingCourt;
 import com.zanar.playera.entity.BookingEquipment;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Component
 public class BookingMapper {
   public static BookingResponseDTO toBookingResponseDTO(Booking booking) {
     BookingResponseDTO dto = new BookingResponseDTO();

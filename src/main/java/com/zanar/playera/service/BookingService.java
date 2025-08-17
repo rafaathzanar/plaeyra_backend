@@ -187,7 +187,7 @@ public class BookingService {
         }
 
         // Release all slots associated with this booking
-        List<Slot> bookedSlots = slotRepository.findByBookingId(id);
+        List<Slot> bookedSlots = slotRepository.findByBooking_BookingId(id);
         for (Slot slot : bookedSlots) {
             slot.release();
             slotRepository.save(slot);
@@ -220,7 +220,7 @@ public class BookingService {
     // New methods for real-time availability
 
     public List<Slot> getAvailableSlotsByCourt(Long courtId, LocalDate date) {
-        return slotRepository.findByCourtIdAndDateAndStatus(courtId, date, Slot.SlotStatus.AVAILABLE);
+        return slotRepository.findByCourt_CourtIdAndDateAndStatus(courtId, date, Slot.SlotStatus.AVAILABLE);
     }
 
     public List<Slot> getAvailableSlotsByVenue(Long venueId, LocalDate date) {
@@ -233,7 +233,7 @@ public class BookingService {
     }
 
     public List<Slot> getCourtCalendar(Long courtId, LocalDate startDate, LocalDate endDate) {
-        return slotRepository.findByCourtIdAndDateBetween(courtId, startDate, endDate);
+        return slotRepository.findByCourt_CourtIdAndDateBetween(courtId, startDate, endDate);
     }
 
     public void cleanupExpiredBookings() {

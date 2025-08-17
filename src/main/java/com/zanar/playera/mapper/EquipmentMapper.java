@@ -1,10 +1,13 @@
 package com.zanar.playera.mapper;
 
+import org.springframework.stereotype.Component;
+
 import com.zanar.playera.dto.EquipmentRequestDTO;
 import com.zanar.playera.dto.EquipmentResponseDTO;
 import com.zanar.playera.entity.Equipment;
 import com.zanar.playera.entity.Court;
 
+@Component
 public class EquipmentMapper {
   public static Equipment toEquipmentEntity(EquipmentRequestDTO dto, Court court) {
     Equipment equipment = new Equipment();
@@ -36,16 +39,16 @@ public class EquipmentMapper {
     dto.setMaximumRentalHours(equipment.getMaximumRentalHours());
     dto.setLastMaintenanceDate(equipment.getLastMaintenanceDate());
     dto.setIsAvailable(equipment.isAvailable());
-    
+
     if (equipment.getCourt() != null) {
       dto.setCourtId(equipment.getCourt().getCourtId());
       dto.setCourtName(equipment.getCourt().getCourtName());
     }
-    
+
     // Calculated fields
     dto.setEstimatedCostPerHour(equipment.getRatePerHour());
     dto.setEstimatedDeposit(equipment.getDepositAmount());
-    
+
     return dto;
   }
 }

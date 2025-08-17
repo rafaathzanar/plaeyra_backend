@@ -41,7 +41,7 @@ public class NotificationService {
   private FirebaseMessaging firebaseMessaging;
 
   public NotificationService() {
-    initializeFirebase();
+    // Firebase will be initialized lazily when first needed
   }
 
   /**
@@ -65,6 +65,16 @@ public class NotificationService {
   }
 
   /**
+   * Get Firebase messaging instance, initializing if necessary
+   */
+  private FirebaseMessaging getFirebaseMessaging() {
+    if (firebaseMessaging == null) {
+      initializeFirebase();
+    }
+    return firebaseMessaging;
+  }
+
+  /**
    * Send push notification to a specific device
    */
   public CompletableFuture<String> sendPushNotification(String deviceToken, String title, String body,
@@ -80,7 +90,7 @@ public class NotificationService {
             .putAllData(data)
             .build();
 
-        return firebaseMessaging.send(message);
+        return getFirebaseMessaging().send(message);
       } catch (Exception e) {
         System.err.println("Failed to send push notification: " + e.getMessage());
         return null;

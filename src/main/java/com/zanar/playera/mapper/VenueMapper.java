@@ -4,7 +4,9 @@ import com.zanar.playera.dto.VenueRequestDTO;
 import com.zanar.playera.dto.VenueResponseDTO;
 import com.zanar.playera.entity.Venue;
 import com.zanar.playera.entity.VenueOwner;
+import org.springframework.stereotype.Component;
 
+@Component
 public class VenueMapper {
   public static Venue toVenueEntity(VenueRequestDTO dto, VenueOwner owner) {
     Venue venue = new Venue();

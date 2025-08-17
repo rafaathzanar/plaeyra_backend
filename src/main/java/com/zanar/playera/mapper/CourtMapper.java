@@ -4,7 +4,9 @@ import com.zanar.playera.dto.CourtRequestDTO;
 import com.zanar.playera.dto.CourtResponseDTO;
 import com.zanar.playera.entity.Court;
 import com.zanar.playera.entity.Venue;
+import org.springframework.stereotype.Component;
 
+@Component
 public class CourtMapper {
   public static Court toCourtEntity(CourtRequestDTO dto, Venue venue) {
     Court court = new Court();

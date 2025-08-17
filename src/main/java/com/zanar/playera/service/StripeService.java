@@ -227,4 +227,21 @@ public class StripeService {
     // to handle refunds, update booking status, etc.
     System.out.println("Refund processed: " + refundId + " for payment: " + paymentIntentId + " amount: " + amount);
   }
+
+  /**
+   * Create a mock payment intent for testing purposes
+   * This method returns a mock client secret for development/testing
+   */
+  public String createMockPaymentIntent(int amount, String currency, String description) {
+    // Generate a mock client secret for testing
+    // In production, this would create an actual Stripe PaymentIntent
+    String mockClientSecret = "pi_mock_" + System.currentTimeMillis() + "_secret_" +
+        Math.random() * 1000000 + "_" + amount + "_" + currency;
+
+    System.out.println("Mock PaymentIntent created: " + mockClientSecret);
+    System.out.println("Amount: " + amount + " " + currency.toUpperCase());
+    System.out.println("Description: " + description);
+
+    return mockClientSecret;
+  }
 }
