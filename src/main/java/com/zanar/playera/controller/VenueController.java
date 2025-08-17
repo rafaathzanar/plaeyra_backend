@@ -8,7 +8,14 @@ import com.zanar.playera.service.VenueService;
 import com.zanar.playera.service.DynamicPricingService;
 import com.zanar.playera.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,7 +30,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/venues")
-@Tag(name = "Venue Management", description = "APIs for venue operations")
+@Tag(name = "Venue Management", description = "APIs for comprehensive venue operations including CRUD, search, filtering, analytics, and dynamic pricing management")
 @CrossOrigin(origins = "*")
 public class VenueController {
 
@@ -38,33 +45,84 @@ public class VenueController {
 
   @PostMapping
   @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
-  @Operation(summary = "Create a new venue", description = "Creates a new venue with the provided details")
-  public ResponseEntity<VenueResponseDTO> createVenue(@Valid @RequestBody VenueRequestDTO venueRequestDTO) {
+  @Operation(summary = "Create a new venue", description = "Creates a new venue with comprehensive details including amenities, sports types, and business information. Requires VENUE_OWNER or ADMIN role.")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "201", description = "Venue created successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = VenueResponseDTO.class), examples = @ExampleObject(value = """
+          {
+            "venueId": 1,
+            "name": "Elite Sports Complex",
+            "address": "123 Sports Street",
+            "location": "Downtown",
+            "description": "Premium sports facility with multiple courts",
+            "contactNo": "+1234567890",
+            "email": "info@elitesports.com",
+            "status": "ACTIVE",
+            "venueType": "INDOOR",
+            "maxCapacity": 100,
+            "parkingAvailable": true,
+            "foodAvailable": true,
+            "changingRoomsAvailable": true,
+            "showerAvailable": true,
+            "wifiAvailable": true,
+            "basePrice": 50.0
+          }
+          """))),
+      @ApiResponse(responseCode = "400", description = "Invalid venue data or validation error"),
+      @ApiResponse(responseCode = "403", description = "Access denied - insufficient permissions")
+  })
+  @SecurityRequirement(name = "Bearer Authentication")
+  public ResponseEntity<VenueResponseDTO> createVenue(
+      @Parameter(description = "Venue creation details", required = true, content = @Content(examples = @ExampleObject(value = """
+          {
+            "name": "Elite Sports Complex",
+            "address": "123 Sports Street",
+            "location": "Downtown",
+            "description": "Premium sports facility with multiple courts",
+            "contactNo": "+1234567890",
+            "email": "info@elitesports.com",
+            "venueType": "INDOOR",
+            "maxCapacity": 100,
+            "parkingAvailable": true,
+            "foodAvailable": true,
+            "changingRoomsAvailable": true,
+            "showerAvailable": true,
+            "wifiAvailable": true,
+            "basePrice": 50.0
+          }
+          """))) @Valid @RequestBody VenueRequestDTO venueRequestDTO) {
     VenueResponseDTO createdVenue = venueService.createVenue(venueRequestDTO);
     return new ResponseEntity<>(createdVenue, HttpStatus.CREATED);
   }
 
   @GetMapping("/{id}")
-  @Operation(summary = "Get venue by ID", description = "Retrieves venue details by venue ID")
-  public ResponseEntity<VenueResponseDTO> getVenueById(@PathVariable Long id) {
+  @Operation(summary = "Get venue by ID", description = "Retrieves comprehensive venue details by venue ID including amenities, sports types, and current status.")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Venue details retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = VenueResponseDTO.class))),
+      @ApiResponse(responseCode = "404", description = "Venue not found")
+  })
+  public ResponseEntity<VenueResponseDTO> getVenueById(
+      @Parameter(description = "Unique identifier of the venue", required = true) @PathVariable Long id) {
     VenueResponseDTO venue = venueService.getVenueById(id);
     return ResponseEntity.ok(venue);
   }
 
   @GetMapping
-  @Operation(summary = "Get all venues", description = "Retrieves all venues with pagination and filtering")
+  @Operation(summary = "Get all venues with advanced filtering", description = "Retrieves all venues with comprehensive filtering options including location, sport type, amenities, price range, and pagination support.")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Venues retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Page.class)))
+  })
   public ResponseEntity<Page<VenueResponseDTO>> getAllVenues(
-      @RequestParam(required = false) String location,
-      @RequestParam(required = false) String sportType,
-      @RequestParam(required = false) String venueType,
-      @RequestParam(required = false) Double minPrice,
-      @RequestParam(required = false) Double maxPrice,
-      @RequestParam(required = false) Boolean hasParking,
-      @RequestParam(required = false) Boolean hasFood,
-      @RequestParam(required = false) Boolean hasChangingRooms,
-      @RequestParam(required = false) Boolean hasShower,
-      @RequestParam(required = false) Boolean hasWifi,
-      Pageable pageable) {
+      @Parameter(description = "Filter by venue location (city, area)") @RequestParam(required = false) String location,
+      @Parameter(description = "Filter by supported sport type") @RequestParam(required = false) String sportType,
+      @Parameter(description = "Filter by venue type (INDOOR, OUTDOOR, MIXED, SPECIALIZED)") @RequestParam(required = false) String venueType,
+      @Parameter(description = "Minimum price per hour") @RequestParam(required = false) Double minPrice,
+      @Parameter(description = "Maximum price per hour") @RequestParam(required = false) Double maxPrice,
+      @Parameter(description = "Filter by parking availability") @RequestParam(required = false) Boolean hasParking,
+      @Parameter(description = "Filter by food availability") @RequestParam(required = false) Boolean hasFood,
+      @Parameter(description = "Filter by changing rooms availability") @RequestParam(required = false) Boolean hasChangingRooms,
+      @Parameter(description = "Filter by shower availability") @RequestParam(required = false) Boolean hasShower,
+      @Parameter(description = "Filter by WiFi availability") @RequestParam(required = false) Boolean hasWifi,
+      @Parameter(description = "Pagination and sorting parameters") Pageable pageable) {
 
     Page<VenueResponseDTO> venues = venueService.getAllVenues(
         location, sportType, venueType, minPrice, maxPrice,
@@ -73,22 +131,28 @@ public class VenueController {
   }
 
   @GetMapping("/search")
-  @Operation(summary = "Search venues", description = "Search venues by name, description, or address")
+  @Operation(summary = "Search venues by text query", description = "Search venues by name, description, or address with optional location and sport type filtering.")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Search results retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = List.class)))
+  })
   public ResponseEntity<List<VenueResponseDTO>> searchVenues(
-      @RequestParam String query,
-      @RequestParam(required = false) String location,
-      @RequestParam(required = false) String sportType) {
+      @Parameter(description = "Search query (venue name, description, or address)", required = true) @RequestParam String query,
+      @Parameter(description = "Optional location filter") @RequestParam(required = false) String location,
+      @Parameter(description = "Optional sport type filter") @RequestParam(required = false) String sportType) {
 
     List<VenueResponseDTO> venues = venueService.searchVenues(query, location, sportType);
     return ResponseEntity.ok(venues);
   }
 
   @GetMapping("/nearby")
-  @Operation(summary = "Find nearby venues", description = "Find venues within specified radius of coordinates")
+  @Operation(summary = "Find nearby venues by coordinates", description = "Find venues within a specified radius (in kilometers) from given latitude and longitude coordinates using Haversine distance calculation.")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Nearby venues retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = List.class)))
+  })
   public ResponseEntity<List<VenueResponseDTO>> getNearbyVenues(
-      @RequestParam Double latitude,
-      @RequestParam Double longitude,
-      @RequestParam(defaultValue = "10.0") Double radiusKm) {
+      @Parameter(description = "Latitude coordinate", required = true, example = "40.7128") @RequestParam Double latitude,
+      @Parameter(description = "Longitude coordinate", required = true, example = "-74.0060") @RequestParam Double longitude,
+      @Parameter(description = "Search radius in kilometers", example = "10.0") @RequestParam(defaultValue = "10.0") Double radiusKm) {
 
     List<VenueResponseDTO> venues = venueService.getNearbyVenues(latitude, longitude, radiusKm);
     return ResponseEntity.ok(venues);
@@ -96,8 +160,14 @@ public class VenueController {
 
   @GetMapping("/owner/{ownerId}")
   @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
-  @Operation(summary = "Get venues by owner", description = "Retrieves all venues owned by a specific venue owner")
-  public ResponseEntity<List<VenueResponseDTO>> getVenuesByOwner(@PathVariable Long ownerId) {
+  @Operation(summary = "Get venues by owner", description = "Retrieves all venues owned by a specific venue owner. Requires VENUE_OWNER or ADMIN role.")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Owner venues retrieved successfully"),
+      @ApiResponse(responseCode = "403", description = "Access denied - insufficient permissions")
+  })
+  @SecurityRequirement(name = "Bearer Authentication")
+  public ResponseEntity<List<VenueResponseDTO>> getVenuesByOwner(
+      @Parameter(description = "Unique identifier of the venue owner", required = true) @PathVariable Long ownerId) {
     List<VenueResponseDTO> venues = venueService.getVenuesByOwner(ownerId);
     return ResponseEntity.ok(venues);
   }
