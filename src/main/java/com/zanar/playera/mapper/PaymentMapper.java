@@ -9,7 +9,7 @@ public class PaymentMapper {
   public static Payment toPaymentEntity(PaymentRequestDTO dto) {
     Payment payment = new Payment();
     payment.setAmount(dto.getAmount());
-    payment.setStatus("PENDING");
+    payment.setStatus(Payment.PaymentStatus.PENDING);
     payment.setPaymentDate(LocalDateTime.now());
     return payment;
   }
@@ -18,7 +18,7 @@ public class PaymentMapper {
     PaymentResponseDTO dto = new PaymentResponseDTO();
     dto.setPaymentId(payment.getPaymentId());
     dto.setAmount(payment.getAmount());
-    dto.setStatus(payment.getStatus());
+    dto.setStatus(payment.getStatus().name());
     dto.setPaymentDate(payment.getPaymentDate());
     // bookingId to be set by service/controller if needed
     return dto;

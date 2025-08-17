@@ -18,28 +18,28 @@ import java.util.stream.Collectors;
 @Service
 @Transactional
 public class BookingService {
-    
+
     @Autowired
     private BookingRepository bookingRepository;
-    
+
     @Autowired
     private UserRepository userRepository;
-    
+
     @Autowired
     private CourtRepository courtRepository;
-    
+
     @Autowired
     private EquipmentRepository equipmentRepository;
-    
+
     @Autowired
     private BookingCourtRepository bookingCourtRepository;
-    
+
     @Autowired
     private BookingEquipmentRepository bookingEquipmentRepository;
-    
+
     @Autowired
     private SlotRepository slotRepository;
-    
+
     @Autowired
     private PaymentService paymentService;
 
@@ -53,16 +53,16 @@ public class BookingService {
         // Validate customer exists
         Customer customer = (Customer) userRepository.findById(dto.getCustomerId())
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
-        
+
         // Validate booking date and time
         if (!dto.isValidTimeRange()) {
             throw new RuntimeException("Invalid time range: start time must be before end time");
         }
-        
+
         if (dto.getBookingDate().isBefore(LocalDate.now())) {
             throw new RuntimeException("Booking date cannot be in the past");
         }
-        
+
         // Create booking
         Booking booking = new Booking();
         booking.setCustomer(customer);
@@ -70,60 +70,63 @@ public class BookingService {
         booking.setDuration(dto.getDurationInHours());
         booking.setBookingStatus("PENDING");
         booking.setTotalCost(0.0);
-        
+
         // Process court bookings with slot validation
         List<BookingCourt> bookingCourts = new ArrayList<>();
         double totalCourtCost = 0.0;
-        
+
         if (dto.getCourtBookings() != null && !dto.getCourtBookings().isEmpty()) {
             for (BookingRequestDTO.CourtBookingDTO courtBooking : dto.getCourtBookings()) {
                 Court court = courtRepository.findById(courtBooking.getCourtId())
                         .orElseThrow(() -> new RuntimeException("Court not found: " + courtBooking.getCourtId()));
-                
+
                 // Check for conflicting slots
                 List<Slot> conflictingSlots = slotRepository.findConflictingSlots(
-                        court.getCourtId(), 
-                        dto.getBookingDate(), 
-                        dto.getStartTime(), 
-                        dto.getEndTime()
-                );
-                
+                        court.getCourtId(),
+                        dto.getBookingDate(),
+                        dto.getStartTime(),
+                        dto.getEndTime());
+
                 if (!conflictingSlots.isEmpty()) {
-                    throw new RuntimeException("Court " + court.getCourtName() + " is not available for the selected time slot");
+                    throw new RuntimeException(
+                            "Court " + court.getCourtName() + " is not available for the selected time slot");
                 }
-                
+
                 // Create booking court record
                 BookingCourt bookingCourt = new BookingCourt();
                 bookingCourt.setBooking(booking);
                 bookingCourt.setCourt(court);
                 bookingCourt.setTimeDuration(courtBooking.getTimeDuration());
                 bookingCourts.add(bookingCourt);
-                
+
                 totalCourtCost += court.getPricePerHour() * courtBooking.getTimeDuration();
             }
         }
-        
+
         booking.setBookingCourts(bookingCourts);
-        
+
         // Process equipment bookings
         List<BookingEquipment> bookingEquipments = new ArrayList<>();
         double totalEquipmentCost = 0.0;
-        
+
         if (dto.getEquipmentBookings() != null && !dto.getEquipmentBookings().isEmpty()) {
             for (BookingRequestDTO.EquipmentBookingDTO equipmentBooking : dto.getEquipmentBookings()) {
                 Equipment equipment = equipmentRepository.findById(equipmentBooking.getEquipmentId())
-                        .orElseThrow(() -> new RuntimeException("Equipment not found: " + equipmentBooking.getEquipmentId()));
-                
+                        .orElseThrow(() -> new RuntimeException(
+                                "Equipment not found: " + equipmentBooking.getEquipmentId()));
+
                 // Validate equipment availability and rental requirements
                 if (!equipment.canRent(equipmentBooking.getQuantity(), equipmentBooking.getTimeDuration())) {
-                    throw new RuntimeException("Equipment " + equipment.getName() + " is not available for the requested rental");
+                    throw new RuntimeException(
+                            "Equipment " + equipment.getName() + " is not available for the requested rental");
                 }
-                
+
                 // Calculate costs
                 double unitPrice = equipment.getRatePerHour();
-                double totalPrice = equipment.calculateRentalCost(equipmentBooking.getQuantity(), equipmentBooking.getTimeDuration());
+                double totalPrice = equipment.calculateRentalCost(equipmentBooking.getQuantity(),
+                        equipmentBooking.getTimeDuration());
                 double depositAmount = equipment.calculateDeposit(equipmentBooking.getQuantity());
-                
+
                 // Create booking equipment record
                 BookingEquipment bookingEquipment = new BookingEquipment();
                 bookingEquipment.setBooking(booking);
@@ -135,23 +138,23 @@ public class BookingService {
                 bookingEquipment.setDepositAmount(depositAmount);
                 bookingEquipment.setStatus(BookingEquipment.RentalStatus.RENTED);
                 bookingEquipments.add(bookingEquipment);
-                
+
                 totalEquipmentCost += totalPrice;
-                
+
                 // Reserve equipment (reduce available quantity)
                 equipment.reserve(equipmentBooking.getQuantity());
                 equipmentRepository.save(equipment);
             }
         }
-        
+
         booking.setBookingEquipments(bookingEquipments);
         booking.setTotalCost(totalCourtCost + totalEquipmentCost);
-        
+
         // Save booking and related entities
         Booking savedBooking = bookingRepository.save(booking);
         bookingCourtRepository.saveAll(bookingCourts);
         bookingEquipmentRepository.saveAll(bookingEquipments);
-        
+
         return BookingMapper.toBookingResponseDTO(savedBooking);
     }
 
@@ -178,61 +181,61 @@ public class BookingService {
     public void cancelBooking(Long id) {
         Booking booking = bookingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Booking not found"));
-        
+
         if ("CANCELLED".equals(booking.getBookingStatus())) {
             throw new RuntimeException("Booking is already cancelled");
         }
-        
+
         // Release all slots associated with this booking
         List<Slot> bookedSlots = slotRepository.findByBookingId(id);
         for (Slot slot : bookedSlots) {
             slot.release();
             slotRepository.save(slot);
         }
-        
+
         // Restore equipment quantities and process refunds
         if (booking.getBookingEquipments() != null) {
             for (BookingEquipment bookingEquipment : booking.getBookingEquipments()) {
                 Equipment equipment = bookingEquipment.getEquipment();
-                
+
                 // Release equipment back to available inventory
                 equipment.release(bookingEquipment.getQuantity());
                 equipmentRepository.save(equipment);
-                
+
                 // Mark equipment as returned for refund processing
                 bookingEquipment.markAsReturned();
                 bookingEquipmentRepository.save(bookingEquipment);
-                
+
                 // TODO: Process refund based on venue-specific policies
                 // This would integrate with PaymentService for actual refund processing
                 // Refund amount could be calculated based on cancellation time and policies
             }
         }
-        
+
         // Update booking status
         booking.setBookingStatus("CANCELLED");
         bookingRepository.save(booking);
     }
-    
+
     // New methods for real-time availability
-    
+
     public List<Slot> getAvailableSlotsByCourt(Long courtId, LocalDate date) {
         return slotRepository.findByCourtIdAndDateAndStatus(courtId, date, Slot.SlotStatus.AVAILABLE);
     }
-    
+
     public List<Slot> getAvailableSlotsByVenue(Long venueId, LocalDate date) {
         return slotRepository.findAvailableSlotsByVenueAndDate(venueId, date, Slot.SlotStatus.AVAILABLE);
     }
-    
+
     public boolean isSlotAvailable(Long courtId, LocalDate date, LocalTime startTime, LocalTime endTime) {
         List<Slot> conflictingSlots = slotRepository.findConflictingSlots(courtId, date, startTime, endTime);
         return conflictingSlots.isEmpty();
     }
-    
+
     public List<Slot> getCourtCalendar(Long courtId, LocalDate startDate, LocalDate endDate) {
         return slotRepository.findByCourtIdAndDateBetween(courtId, startDate, endDate);
     }
-    
+
     public void cleanupExpiredBookings() {
         List<Slot> expiredSlots = slotRepository.findExpiredBookedSlots(LocalDate.now());
         for (Slot slot : expiredSlots) {
@@ -251,7 +254,9 @@ public class BookingService {
         return bookingRepository.findAll().stream()
                 .filter(b -> "CANCELLED".equalsIgnoreCase(b.getBookingStatus()) &&
                         b.getBookingCourts() != null &&
-                        b.getBookingCourts().stream().anyMatch(bc -> bc.getCourt().getVenue() != null && venueIds.contains(bc.getCourt().getVenue().getVenueId())))
+                        b.getBookingCourts().stream()
+                                .anyMatch(bc -> bc.getCourt().getVenue() != null
+                                        && venueIds.contains(bc.getCourt().getVenue().getVenueId())))
                 .toList();
     }
 
@@ -262,7 +267,7 @@ public class BookingService {
             throw new RuntimeException("Booking is not cancelled");
         }
         if (booking.getPayment() != null) {
-            booking.getPayment().setStatus("REFUNDED");
+            booking.getPayment().setStatus(Payment.PaymentStatus.REFUNDED);
             paymentRepository.save(booking.getPayment());
         }
         // Optionally, update booking status to indicate refund processed
@@ -287,7 +292,9 @@ public class BookingService {
     public List<Booking> getBookingsByCustomerAndVenue(Long customerId, Long venueId) {
         return bookingRepository.findAll().stream()
                 .filter(b -> b.getCustomer() != null && b.getCustomer().getUserId().equals(customerId))
-                .filter(b -> b.getBookingCourts() != null && b.getBookingCourts().stream().anyMatch(bc -> bc.getCourt().getVenue() != null && bc.getCourt().getVenue().getVenueId().equals(venueId)))
+                .filter(b -> b.getBookingCourts() != null && b.getBookingCourts().stream()
+                        .anyMatch(bc -> bc.getCourt().getVenue() != null
+                                && bc.getCourt().getVenue().getVenueId().equals(venueId)))
                 .toList();
     }
 
