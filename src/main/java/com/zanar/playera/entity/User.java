@@ -1,81 +1,83 @@
 package com.zanar.playera.entity;
 
 import jakarta.persistence.*;
-import org.hibernate.usertype.UserType;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.*;
+
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users")
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "user_type", discriminatorType = DiscriminatorType.STRING)
-public class User {
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public abstract class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long userId;
 
-    @Column(nullable = false)
+    @NotBlank(message = "Name is required")
+    @Size(min = 2, max = 100, message = "Name must be between 2 and 100 characters")
     private String name;
 
+    @Email(message = "Email should be valid")
+    @NotBlank(message = "Email is required")
     @Column(unique = true, nullable = false)
     private String email;
 
-    @Column(nullable = false)
+    @NotBlank(message = "Password is required")
+    @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
-    @Column(unique = true)
+    @Size(max = 15, message = "Phone number must not exceed 15 characters")
     private String phone;
 
     @Enumerated(EnumType.STRING)
-    private UserType userType;
+    private UserStatus status = UserStatus.ACTIVE;
 
-    public enum UserType {
-        VENUE_OWNER, CUSTOMER
+    @Enumerated(EnumType.STRING)
+    private UserRole role;
+
+    private String profileImage;
+
+    private LocalDateTime createdAt;
+
+    private LocalDateTime lastLoginAt;
+
+    private boolean emailVerified = false;
+
+    private String emailVerificationToken;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
     }
 
-    public Long getId() {
-        return id;
+    public enum UserStatus {
+        ACTIVE, INACTIVE, SUSPENDED, DELETED
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    public enum UserRole {
+        CUSTOMER, VENUE_OWNER, ADMIN
     }
 
-    public String getName() {
-        return name;
+    // Helper methods
+    public boolean isActive() {
+        return status == UserStatus.ACTIVE;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public boolean isCustomer() {
+        return role == UserRole.CUSTOMER;
     }
 
-    public String getEmail() {
-        return email;
+    public boolean isVenueOwner() {
+        return role == UserRole.VENUE_OWNER;
     }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public String getPhone() {
-        return phone;
-    }
-
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-
-    public UserType getUserType() {
-        return userType;
-    }
-
-    public void setUserType(UserType userType) {
-        this.userType = userType;
+    public boolean isAdmin() {
+        return role == UserRole.ADMIN;
     }
 }

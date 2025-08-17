@@ -1,19 +1,86 @@
 package com.zanar.playera.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import lombok.*;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Entity
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "courts")
 public class Court {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long courtId;
 
+    @NotBlank(message = "Court name is required")
     @Column(nullable = false)
-    private String name;
+    private String courtName;
+
+    @NotBlank(message = "Sport type is required")
+    @Column(nullable = false)
+    private String type;
+
+    @Positive(message = "Capacity must be positive")
+    @Column(nullable = false)
+    private int capacity;
+
+    @Positive(message = "Price per hour must be positive")
+    @Column(nullable = false)
+    private double pricePerHour;
+
+    private String description;
+
+    @Enumerated(EnumType.STRING)
+    private CourtStatus status = CourtStatus.ACTIVE;
+
+    private String surfaceType; // e.g., Wood, Concrete, Grass, Artificial Turf
+
+    private boolean isIndoor = true;
+
+    private boolean isLighted = false;
+
+    private boolean isAirConditioned = false;
+
+    private String equipment; // Comma-separated list of available equipment
+
+    private int minBookingDuration = 1; // in hours
+
+    private int maxBookingDuration = 24; // in hours
+
+    private boolean dynamicPricingEnabled = false;
+
+    private double peakHourMultiplier = 1.5;
+
+    private double offPeakMultiplier = 0.8;
+
+    private double weekendMultiplier = 1.2;
+
+    private double holidayMultiplier = 1.3;
+
+    private LocalTime peakHourStart = LocalTime.of(18, 0); // 6 PM
+
+    private LocalTime peakHourEnd = LocalTime.of(22, 0); // 10 PM
+
+    private String specialEvents; // JSON string for special event pricing
+
+    private boolean maintenanceMode = false;
+
+    private LocalTime maintenanceStartTime;
+
+    private LocalTime maintenanceEndTime;
+
+    private String maintenanceNotes;
 
     @ManyToOne
     @JoinColumn(name = "venue_id", nullable = false)
@@ -22,35 +89,123 @@ public class Court {
     @OneToMany(mappedBy = "court", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Slot> slots = new ArrayList<>();
 
-    public Long getId() {
-        return id;
+    @OneToMany(mappedBy = "court", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Equipment> equipmentList = new ArrayList<>();
+
+    @ElementCollection
+    private Map<DayOfWeek, CourtAvailability> availabilitySchedule = new HashMap<>();
+
+    public enum CourtStatus {
+        ACTIVE, INACTIVE, MAINTENANCE, RESERVED, DELETED
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    @Embeddable
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CourtAvailability {
+        private LocalTime openTime;
+        private LocalTime closeTime;
+        private boolean isAvailable;
+        private String specialNotes;
+        private double specialPrice; // Override price for specific days
     }
 
-    public String getName() {
-        return name;
+    // Helper methods for dynamic pricing
+    public double calculateDynamicPrice(LocalTime time, DayOfWeek day) {
+        if (!dynamicPricingEnabled) {
+            return pricePerHour;
+        }
+
+        double multiplier = 1.0;
+
+        // Peak hour pricing
+        if (time.isAfter(peakHourStart) && time.isBefore(peakHourEnd)) {
+            multiplier *= peakHourMultiplier;
+        } else {
+            multiplier *= offPeakMultiplier;
+        }
+
+        // Weekend pricing
+        if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+            multiplier *= weekendMultiplier;
+        }
+
+        // Check for special day pricing
+        CourtAvailability availability = availabilitySchedule.get(day);
+        if (availability != null && availability.getSpecialPrice() > 0) {
+            return availability.getSpecialPrice();
+        }
+
+        return pricePerHour * multiplier;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public boolean isAvailable(DayOfWeek day, LocalTime time) {
+        if (status != CourtStatus.ACTIVE || maintenanceMode) {
+            return false;
+        }
+
+        CourtAvailability availability = availabilitySchedule.get(day);
+        if (availability == null || !availability.isAvailable()) {
+            return false;
+        }
+
+        return time.isAfter(availability.getOpenTime()) && time.isBefore(availability.getCloseTime());
     }
 
-    public Venue getVenue() {
-        return venue;
+    public boolean isUnderMaintenance(LocalTime time) {
+        if (!maintenanceMode) {
+            return false;
+        }
+
+        return time.isAfter(maintenanceStartTime) && time.isBefore(maintenanceEndTime);
     }
 
-    public void setVenue(Venue venue) {
-        this.venue = venue;
+    public boolean canBookDuration(int duration) {
+        return duration >= minBookingDuration && duration <= maxBookingDuration;
     }
 
-    public List<Slot> getSlots() {
-        return slots;
+    public void addSlot(Slot slot) {
+        slots.add(slot);
+        slot.setCourt(this);
     }
 
-    public void setSlots(List<Slot> slots) {
-        this.slots = slots;
+    public void removeSlot(Slot slot) {
+        slots.remove(slot);
+        slot.setCourt(null);
+    }
+
+    public void addEquipment(Equipment equipment) {
+        equipmentList.add(equipment);
+        equipment.setCourt(this);
+    }
+
+    public void removeEquipment(Equipment equipment) {
+        equipmentList.remove(equipment);
+        equipment.setCourt(null);
+    }
+
+    public List<Slot> getAvailableSlots() {
+        return slots.stream()
+                .filter(Slot::isAvailable)
+                .toList();
+    }
+
+    public List<Slot> getBookedSlots() {
+        return slots.stream()
+                .filter(Slot::isBooked)
+                .toList();
+    }
+
+    public double getOccupancyRate() {
+        if (slots.isEmpty()) {
+            return 0.0;
+        }
+
+        long bookedSlots = slots.stream()
+                .filter(Slot::isBooked)
+                .count();
+
+        return (double) bookedSlots / slots.size();
     }
 }
