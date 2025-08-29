@@ -37,9 +37,9 @@ public class VenueOwner extends User {
 
     private String bankBranch;
 
-    private double commissionRate = 0.10; // Default 10% commission
+    private Double commissionRate = 0.10; // Default 10% commission
 
-    private boolean autoApprovalEnabled = false;
+    private Boolean autoApprovalEnabled = false;
 
     private String cancellationPolicy;
 
@@ -47,17 +47,18 @@ public class VenueOwner extends User {
 
     private LocalDateTime businessStartedAt;
 
-    private int totalVenues = 0;
+    private Integer totalVenues = 0;
 
-    private double totalRevenue = 0.0;
+    private Double totalRevenue = 0.0;
 
-    private int totalBookings = 0;
+    private Integer totalBookings = 0;
 
     @OneToMany(mappedBy = "venueOwner", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Venue> venues = new ArrayList<>();
 
     // Reviews are accessed through venues, not directly
-    // @OneToMany(mappedBy = "venueOwner", cascade = CascadeType.ALL, orphanRemoval = true)
+    // @OneToMany(mappedBy = "venueOwner", cascade = CascadeType.ALL, orphanRemoval
+    // = true)
     // private List<Review> reviews = new ArrayList<>();
 
     public enum VerificationStatus {

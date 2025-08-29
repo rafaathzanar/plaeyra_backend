@@ -27,19 +27,38 @@ public class SecurityConfig {
   }
 
   @Bean
+  public AuthenticationManager authenticationManager(HttpSecurity http) throws Exception {
+    return http.getSharedObject(AuthenticationManagerBuilder.class)
+        .userDetailsService(userDetailsService)
+        .passwordEncoder(passwordEncoder())
+        .and()
+        .build();
+  }
+
+  @Bean
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     http.csrf().disable()
+        .cors().and()
         .authorizeHttpRequests()
         .requestMatchers(
             "/api/auth/**",
+            "/api/auth/register",
+            "/api/auth/login",
+            "/api/auth/forgot-password",
+            "/api/auth/reset-password",
             "/v3/api-docs/**",
             "/swagger-ui/**",
-            "/swagger-ui.html")
+            "/swagger-ui.html",
+            "/swagger-resources/**",
+            "/webjars/**")
         .permitAll()
         .anyRequest().authenticated()
         .and()
         .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+
+    // Only apply JWT filter to authenticated requests
     http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+
     return http.build();
   }
 }

@@ -33,11 +33,11 @@ public class Court {
 
     @Positive(message = "Capacity must be positive")
     @Column(nullable = false)
-    private int capacity;
+    private Integer capacity;
 
     @Positive(message = "Price per hour must be positive")
     @Column(nullable = false)
-    private double pricePerHour;
+    private Double pricePerHour;
 
     private String description;
 
@@ -46,27 +46,27 @@ public class Court {
 
     private String surfaceType; // e.g., Wood, Concrete, Grass, Artificial Turf
 
-    private boolean isIndoor = true;
+    private Boolean isIndoor = true;
 
-    private boolean isLighted = false;
+    private Boolean isLighted = false;
 
-    private boolean isAirConditioned = false;
+    private Boolean isAirConditioned = false;
 
     private String equipment; // Comma-separated list of available equipment
 
-    private int minBookingDuration = 1; // in hours
+    private Integer minBookingDuration = 1; // in hours
 
-    private int maxBookingDuration = 24; // in hours
+    private Integer maxBookingDuration = 24; // in hours
 
-    private boolean dynamicPricingEnabled = false;
+    private Boolean dynamicPricingEnabled = false;
 
-    private double peakHourMultiplier = 1.5;
+    private Double peakHourMultiplier = 1.5;
 
-    private double offPeakMultiplier = 0.8;
+    private Double offPeakMultiplier = 0.8;
 
-    private double weekendMultiplier = 1.2;
+    private Double weekendMultiplier = 1.2;
 
-    private double holidayMultiplier = 1.3;
+    private Double holidayMultiplier = 1.3;
 
     private LocalTime peakHourStart = LocalTime.of(18, 0); // 6 PM
 
@@ -74,7 +74,7 @@ public class Court {
 
     private String specialEvents; // JSON string for special event pricing
 
-    private boolean maintenanceMode = false;
+    private Boolean maintenanceMode = false;
 
     private LocalTime maintenanceStartTime;
 
@@ -106,14 +106,14 @@ public class Court {
     public static class CourtAvailability {
         private LocalTime openTime;
         private LocalTime closeTime;
-        private boolean isAvailable;
+        private Boolean isAvailable;
         private String specialNotes;
-        private double specialPrice; // Override price for specific days
+        private Double specialPrice; // Override price for specific days
     }
 
     // Helper methods for dynamic pricing
     public double calculateDynamicPrice(LocalTime time, DayOfWeek day) {
-        if (!dynamicPricingEnabled) {
+        if (!getDynamicPricingEnabled()) {
             return pricePerHour;
         }
 
@@ -141,12 +141,12 @@ public class Court {
     }
 
     public boolean isAvailable(DayOfWeek day, LocalTime time) {
-        if (status != CourtStatus.ACTIVE || maintenanceMode) {
+        if (status != CourtStatus.ACTIVE || getMaintenanceMode()) {
             return false;
         }
 
         CourtAvailability availability = availabilitySchedule.get(day);
-        if (availability == null || !availability.isAvailable()) {
+        if (availability == null || !availability.getIsAvailable()) {
             return false;
         }
 
@@ -154,7 +154,7 @@ public class Court {
     }
 
     public boolean isUnderMaintenance(LocalTime time) {
-        if (!maintenanceMode) {
+        if (!getMaintenanceMode()) {
             return false;
         }
 

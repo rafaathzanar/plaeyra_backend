@@ -83,9 +83,9 @@ public class CourtService {
         .filter(court -> venueId == null || court.getVenue().getVenueId().equals(venueId))
         .filter(court -> sportType == null || court.getType().equals(sportType))
         .filter(court -> surfaceType == null || court.getSurfaceType().equals(surfaceType))
-        .filter(court -> isIndoor == null || court.isIndoor() == isIndoor)
-        .filter(court -> isLighted == null || court.isLighted() == isLighted)
-        .filter(court -> isAirConditioned == null || court.isAirConditioned() == isAirConditioned)
+        .filter(court -> isIndoor == null || court.getIsIndoor() == isIndoor)
+        .filter(court -> isLighted == null || court.getIsLighted() == isLighted)
+        .filter(court -> isAirConditioned == null || court.getIsAirConditioned() == isAirConditioned)
         .filter(court -> minPrice == null || court.getPricePerHour() >= minPrice)
         .filter(court -> maxPrice == null || court.getPricePerHour() <= maxPrice)
         .filter(court -> status == null || court.getStatus().name().equals(status))
@@ -274,7 +274,7 @@ public class CourtService {
     Map<String, Object> pricing = new HashMap<>();
     pricing.put("courtId", id);
     pricing.put("basePrice", court.getPricePerHour());
-    pricing.put("dynamicPricingEnabled", court.isDynamicPricingEnabled());
+    pricing.put("dynamicPricingEnabled", court.getDynamicPricingEnabled());
     pricing.put("peakHourMultiplier", court.getPeakHourMultiplier());
     pricing.put("offPeakMultiplier", court.getOffPeakMultiplier());
     pricing.put("weekendMultiplier", court.getWeekendMultiplier());

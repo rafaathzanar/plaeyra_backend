@@ -99,11 +99,11 @@ public class VenueService {
         .filter(venue -> venueType == null || venue.getVenueType().name().equals(venueType))
         .filter(venue -> minPrice == null || venue.getBasePrice() >= minPrice)
         .filter(venue -> maxPrice == null || venue.getBasePrice() <= maxPrice)
-        .filter(venue -> hasParking == null || venue.isParkingAvailable() == hasParking)
-        .filter(venue -> hasFood == null || venue.isFoodAvailable() == hasFood)
-        .filter(venue -> hasChangingRooms == null || venue.isChangingRoomsAvailable() == hasChangingRooms)
-        .filter(venue -> hasShower == null || venue.isShowerAvailable() == hasShower)
-        .filter(venue -> hasWifi == null || venue.isWifiAvailable() == hasWifi)
+        .filter(venue -> hasParking == null || venue.getParkingAvailable() == hasParking)
+        .filter(venue -> hasFood == null || venue.getFoodAvailable() == hasFood)
+        .filter(venue -> hasChangingRooms == null || venue.getChangingRoomsAvailable() == hasChangingRooms)
+        .filter(venue -> hasShower == null || venue.getShowerAvailable() == hasShower)
+        .filter(venue -> hasWifi == null || venue.getWifiAvailable() == hasWifi)
         .filter(venue -> venue.getStatus() == Venue.VenueStatus.ACTIVE)
         .collect(Collectors.toList());
 
@@ -332,7 +332,7 @@ public class VenueService {
 
     Map<String, Object> pricing = new HashMap<>();
     pricing.put("basePrice", venue.getBasePrice());
-    pricing.put("dynamicPricingEnabled", venue.isDynamicPricingEnabled());
+    pricing.put("dynamicPricingEnabled", venue.getDynamicPricingEnabled());
     pricing.put("peakHourMultiplier", venue.getPeakHourMultiplier());
     pricing.put("offPeakMultiplier", venue.getOffPeakMultiplier());
     pricing.put("weekendMultiplier", venue.getWeekendMultiplier());

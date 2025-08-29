@@ -42,9 +42,9 @@ public class Venue {
 
     private String website;
 
-    private double latitude;
+    private Double latitude;
 
-    private double longitude;
+    private Double longitude;
 
     @Enumerated(EnumType.STRING)
     private VenueStatus status = VenueStatus.ACTIVE;
@@ -52,17 +52,17 @@ public class Venue {
     @Enumerated(EnumType.STRING)
     private VenueType venueType;
 
-    private int maxCapacity;
+    private Integer maxCapacity;
 
-    private boolean parkingAvailable = false;
+    private Boolean parkingAvailable = false;
 
-    private boolean foodAvailable = false;
+    private Boolean foodAvailable = false;
 
-    private boolean changingRoomsAvailable = false;
+    private Boolean changingRoomsAvailable = false;
 
-    private boolean showerAvailable = false;
+    private Boolean showerAvailable = false;
 
-    private boolean wifiAvailable = false;
+    private Boolean wifiAvailable = false;
 
     private String openingHours; // JSON string for business hours
 
@@ -70,17 +70,17 @@ public class Venue {
 
     private String refundPolicy;
 
-    private double basePrice;
+    private Double basePrice;
 
-    private boolean dynamicPricingEnabled = false;
+    private Boolean dynamicPricingEnabled = false;
 
-    private double peakHourMultiplier = 1.5;
+    private Double peakHourMultiplier = 1.5;
 
-    private double offPeakMultiplier = 0.8;
+    private Double offPeakMultiplier = 0.8;
 
-    private double weekendMultiplier = 1.2;
+    private Double weekendMultiplier = 1.2;
 
-    private double holidayMultiplier = 1.3;
+    private Double holidayMultiplier = 1.3;
 
     private LocalTime peakHourStart = LocalTime.of(18, 0); // 6 PM
 
@@ -88,13 +88,13 @@ public class Venue {
 
     private String specialEvents; // JSON string for special event pricing
 
-    private double commissionRate = 0.10; // Default 10% commission
+    private Double commissionRate = 0.10; // Default 10% commission
 
-    private boolean autoApprovalEnabled = false;
+    private Boolean autoApprovalEnabled = false;
 
-    private int minAdvanceBookingHours = 24;
+    private Integer minAdvanceBookingHours = 24;
 
-    private int maxAdvanceBookingDays = 30;
+    private Integer maxAdvanceBookingDays = 30;
 
     private LocalTime earliestBookingTime = LocalTime.of(6, 0); // 6 AM
 
@@ -140,12 +140,16 @@ public class Venue {
     public static class BusinessHours {
         private LocalTime openTime;
         private LocalTime closeTime;
-        private boolean isOpen;
+        private Boolean isOpen;
         private String specialNotes;
     }
 
     // Helper methods for dynamic pricing
     public double calculateDynamicPrice(double basePrice, LocalTime time, DayOfWeek day) {
+        if (!getDynamicPricingEnabled()) {
+            return basePrice;
+        }
+
         double multiplier = 1.0;
 
         // Peak hour pricing
@@ -165,7 +169,7 @@ public class Venue {
 
     public boolean isOpen(DayOfWeek day, LocalTime time) {
         BusinessHours hours = businessHours.get(day);
-        if (hours == null || !hours.isOpen()) {
+        if (hours == null || !hours.getIsOpen()) {
             return false;
         }
 

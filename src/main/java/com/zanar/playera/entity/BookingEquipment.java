@@ -44,7 +44,7 @@ public class BookingEquipment {
     
     private String returnNotes; // for damage reports, etc.
     
-    private boolean isReturned = false;
+    private Boolean isReturned = false;
     
     public enum RentalStatus {
         RENTED, RETURNED, DAMAGED, LOST, REFUNDED

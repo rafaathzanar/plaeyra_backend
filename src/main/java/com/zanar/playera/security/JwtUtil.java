@@ -13,7 +13,7 @@ import java.util.function.Function;
 
 @Component
 public class JwtUtil {
-  private final String SECRET_KEY = "playera_secret_key_123";
+  private final String SECRET_KEY = "cGxheWVyYV9zZWNyZXRfa2V5XzEyMzQ1Njc4OTBwbGF5ZXJhX3NlY3JldF9rZXlfMTIzNDU2Nzg5MA==";
   private final long EXPIRATION_MS = 1000 * 60 * 60 * 24; // 24 hours
 
   public String extractUsername(String token) {
