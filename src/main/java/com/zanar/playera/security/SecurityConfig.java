@@ -42,10 +42,9 @@ public class SecurityConfig {
         .authorizeHttpRequests()
         .requestMatchers(
             "/api/auth/**",
-            "/api/auth/register",
-            "/api/auth/login",
-            "/api/auth/forgot-password",
-            "/api/auth/reset-password",
+            "/api/venues/**",
+            "/api/courts/**",
+            "/api/equipment/**",
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -54,10 +53,9 @@ public class SecurityConfig {
         .permitAll()
         .anyRequest().authenticated()
         .and()
-        .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
-
-    // Only apply JWT filter to authenticated requests
-    http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+        .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+        .and()
+        .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
   }
