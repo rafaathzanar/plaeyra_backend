@@ -47,14 +47,14 @@ public class VenueOwner extends User {
 
     private LocalDateTime businessStartedAt;
 
-    private Integer totalVenues = 0;
+    // Removed totalVenues as each owner can have only one venue
 
     private Double totalRevenue = 0.0;
 
     private Integer totalBookings = 0;
 
-    @OneToMany(mappedBy = "venueOwner", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Venue> venues = new ArrayList<>();
+    @OneToOne(mappedBy = "venueOwner", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Venue venue;
 
     // Reviews are accessed through venues, not directly
     // @OneToMany(mappedBy = "venueOwner", cascade = CascadeType.ALL, orphanRemoval
@@ -71,17 +71,19 @@ public class VenueOwner extends User {
     }
 
     public boolean canAddVenue() {
-        return isVerified() && getStatus() == UserStatus.ACTIVE;
+        return isVerified() && getStatus() == UserStatus.ACTIVE && this.venue == null;
     }
 
-    public void addVenue() {
-        this.totalVenues++;
+    public void setVenue(Venue venue) {
+        this.venue = venue;
     }
 
-    public void removeVenue() {
-        if (this.totalVenues > 0) {
-            this.totalVenues--;
-        }
+    public Venue getVenue() {
+        return this.venue;
+    }
+
+    public boolean hasVenue() {
+        return this.venue != null;
     }
 
     public void addRevenue(double amount) {

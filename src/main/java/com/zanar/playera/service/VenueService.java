@@ -60,14 +60,19 @@ public class VenueService {
         .orElseThrow(() -> new RuntimeException("Venue owner not found"));
 
     if (!owner.canAddVenue()) {
-      throw new RuntimeException("Venue owner is not verified or active");
+      throw new RuntimeException("Venue owner is not verified or active, or already has a venue");
+    }
+
+    // Check if owner already has a venue
+    if (owner.hasVenue()) {
+      throw new RuntimeException("Venue owner can only have one venue");
     }
 
     Venue venue = VenueMapper.toVenueEntity(venueRequestDTO, owner);
     venue.setStatus(Venue.VenueStatus.ACTIVE);
 
     Venue savedVenue = venueRepository.save(venue);
-    owner.addVenue();
+    owner.setVenue(savedVenue);
     venueOwnerRepository.save(owner);
 
     return VenueMapper.toVenueResponseDTO(savedVenue);
@@ -157,16 +162,26 @@ public class VenueService {
   }
 
   /**
-   * Get venues by owner
+   * Get venue by owner ID (each owner can have only one venue)
+   */
+  public VenueResponseDTO getVenueByOwner(Long ownerId) {
+    Venue venue = venueRepository.findAll().stream()
+        .filter(v -> v.getVenueOwner() != null && v.getVenueOwner().getUserId().equals(ownerId))
+        .findFirst()
+        .orElseThrow(() -> new RuntimeException("Venue not found for owner"));
+    return VenueMapper.toVenueResponseDTO(venue);
+  }
+
+  /**
+   * Get venues by owner (legacy method - returns list with single venue)
    */
   public List<VenueResponseDTO> getVenuesByOwner(Long ownerId) {
-    List<Venue> venues = venueRepository.findAll().stream()
-        .filter(venue -> venue.getVenueOwner().getUserId().equals(ownerId))
-        .collect(Collectors.toList());
-
-    return venues.stream()
-        .map(VenueMapper::toVenueResponseDTO)
-        .collect(Collectors.toList());
+    try {
+      VenueResponseDTO venue = getVenueByOwner(ownerId);
+      return List.of(venue);
+    } catch (RuntimeException e) {
+      return new ArrayList<>();
+    }
   }
 
   /**

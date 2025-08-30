@@ -174,6 +174,21 @@ public class VenueController {
     return ResponseEntity.ok(venues);
   }
 
+  @GetMapping("/owner/{ownerId}/venue")
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  @Operation(summary = "Get venue by owner", description = "Retrieves the single venue owned by a specific venue owner. Requires VENUE_OWNER or ADMIN role.")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Owner venue retrieved successfully"),
+      @ApiResponse(responseCode = "404", description = "Venue not found for owner"),
+      @ApiResponse(responseCode = "403", description = "Access denied - insufficient permissions")
+  })
+  @SecurityRequirement(name = "Bearer Authentication")
+  public ResponseEntity<VenueResponseDTO> getVenueByOwner(
+      @Parameter(description = "Unique identifier of the venue owner", required = true) @PathVariable Long ownerId) {
+    VenueResponseDTO venue = venueService.getVenueByOwner(ownerId);
+    return ResponseEntity.ok(venue);
+  }
+
   @PutMapping("/{id}")
   @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
   @Operation(summary = "Update venue", description = "Updates an existing venue with new details")

@@ -23,25 +23,32 @@ public class OwnerDashboardService {
     private PaymentRepository paymentRepository;
 
     public DashboardSummaryDTO getDashboardSummary(Long ownerId, LocalDate start, LocalDate end) {
-        List<Venue> venues = venueRepository.findAll().stream()
+        // Each owner has only one venue
+        Venue venue = venueRepository.findAll().stream()
                 .filter(v -> v.getVenueOwner() != null && v.getVenueOwner().getUserId().equals(ownerId))
-                .collect(Collectors.toList());
-        List<Long> venueIds = venues.stream().map(Venue::getVenueId).collect(Collectors.toList());
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Venue not found for owner"));
+
+        List<Long> venueIds = List.of(venue.getVenueId());
         List<Booking> bookings = bookingRepository.findAll().stream()
                 .filter(b -> b.getBookingDate() != null &&
                         !b.getBookingDate().toLocalDate().isBefore(start) &&
                         !b.getBookingDate().toLocalDate().isAfter(end) &&
                         b.getBookingCourts() != null &&
-                        b.getBookingCourts().stream().anyMatch(bc -> bc.getCourt().getVenue() != null && venueIds.contains(bc.getCourt().getVenue().getVenueId())))
+                        b.getBookingCourts().stream()
+                                .anyMatch(bc -> bc.getCourt().getVenue() != null
+                                        && venueIds.contains(bc.getCourt().getVenue().getVenueId())))
                 .collect(Collectors.toList());
         double totalRevenue = bookings.stream().mapToDouble(Booking::getTotalCost).sum();
         int totalBookings = bookings.size();
-        int totalCancellations = (int) bookings.stream().filter(b -> "CANCELLED".equalsIgnoreCase(b.getBookingStatus())).count();
-        int totalEquipmentRentals = bookings.stream().mapToInt(b -> b.getBookingEquipments() != null ? b.getBookingEquipments().size() : 0).sum();
+        int totalCancellations = (int) bookings.stream().filter(b -> "CANCELLED".equalsIgnoreCase(b.getBookingStatus()))
+                .count();
+        int totalEquipmentRentals = bookings.stream()
+                .mapToInt(b -> b.getBookingEquipments() != null ? b.getBookingEquipments().size() : 0).sum();
 
-        KPIsDTO kpis = calculateKPIs(bookings, venues);
+        KPIsDTO kpis = calculateKPIs(bookings, List.of(venue));
         RevenueStatsDTO revenueStats = calculateRevenueStats(bookings, start, end);
-        List<AlertDTO> alerts = generateAlerts(bookings, venues);
+        List<AlertDTO> alerts = generateAlerts(bookings, List.of(venue));
 
         DashboardSummaryDTO summary = new DashboardSummaryDTO();
         summary.setTotalRevenue(totalRevenue);
@@ -61,11 +68,17 @@ public class OwnerDashboardService {
         kpis.setAverageBookingValue(totalBookings == 0 ? 0 : totalRevenue / totalBookings);
         // Occupancy rate: booked slots / total slots
         int totalSlots = venues.stream().flatMap(v -> v.getCourts().stream()).mapToInt(c -> c.getSlots().size()).sum();
-        int bookedSlots = venues.stream().flatMap(v -> v.getCourts().stream()).mapToInt(c -> (int) c.getSlots().stream().filter(s -> s.getStatus().name().equals("BOOKED")).count()).sum();
+        int bookedSlots = venues.stream().flatMap(v -> v.getCourts().stream())
+                .mapToInt(c -> (int) c.getSlots().stream().filter(s -> s.getStatus().name().equals("BOOKED")).count())
+                .sum();
         kpis.setOccupancyRate(totalSlots == 0 ? 0 : (double) bookedSlots / totalSlots);
         // Equipment utilization: rented hours / available hours
-        int rentedHours = bookings.stream().flatMap(b -> b.getBookingEquipments() != null ? b.getBookingEquipments().stream() : new ArrayList<BookingEquipment>().stream()).mapToInt(BookingEquipment::getTimeDuration).sum();
-        int availableHours = venues.stream().flatMap(v -> v.getCourts().stream()).mapToInt(c -> c.getSlots().size()).sum();
+        int rentedHours = bookings.stream()
+                .flatMap(b -> b.getBookingEquipments() != null ? b.getBookingEquipments().stream()
+                        : new ArrayList<BookingEquipment>().stream())
+                .mapToInt(BookingEquipment::getTimeDuration).sum();
+        int availableHours = venues.stream().flatMap(v -> v.getCourts().stream()).mapToInt(c -> c.getSlots().size())
+                .sum();
         kpis.setEquipmentUtilization(availableHours == 0 ? 0 : (double) rentedHours / availableHours);
         // Profit margin: (revenue - cost) / revenue (cost not tracked, so set to 0)
         kpis.setProfitMargin(1.0); // Placeholder
@@ -85,7 +98,8 @@ public class OwnerDashboardService {
     public List<AlertDTO> generateAlerts(List<Booking> bookings, List<Venue> venues) {
         List<AlertDTO> alerts = new ArrayList<>();
         // Overbooking alert
-        long overbooked = bookings.stream().filter(b -> b.getBookingCourts() != null && b.getBookingCourts().size() > 1).count();
+        long overbooked = bookings.stream().filter(b -> b.getBookingCourts() != null && b.getBookingCourts().size() > 1)
+                .count();
         if (overbooked > 0) {
             AlertDTO alert = new AlertDTO();
             alert.setType("OVERBOOKING");
@@ -104,4 +118,4 @@ public class OwnerDashboardService {
         }
         return alerts;
     }
-} 
+}
