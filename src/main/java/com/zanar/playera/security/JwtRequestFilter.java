@@ -11,11 +11,15 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
+  private static final Logger logger = LoggerFactory.getLogger(JwtRequestFilter.class);
+
   @Autowired
   private JwtUtil jwtUtil;
   @Autowired
@@ -25,51 +29,71 @@ public class JwtRequestFilter extends OncePerRequestFilter {
   protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
       throws ServletException, IOException {
 
-    // Skip JWT processing for permitAll endpoints
     String requestURI = request.getRequestURI();
-    if (requestURI.startsWith("/api/auth/") ||
-        requestURI.startsWith("/api/venues/") ||
-        requestURI.startsWith("/api/courts/") ||
-        requestURI.startsWith("/api/equipment/")) {
+    logger.debug("JWT Filter processing request: {}", requestURI);
+
+    // Skip JWT processing only for public auth endpoints (login and register)
+    if (requestURI.equals("/api/auth/login") || requestURI.equals("/api/auth/register")) {
+      logger.debug("Skipping JWT processing for public endpoint: {}", requestURI);
       chain.doFilter(request, response);
       return;
     }
 
     final String authHeader = request.getHeader("Authorization");
+    logger.debug("Authorization header: {}", authHeader != null ? "Present" : "Missing");
 
-    // If no Authorization header, skip JWT processing and continue
+    // For protected endpoints, require valid Authorization header
     if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-      chain.doFilter(request, response);
+      logger.warn("Missing or invalid Authorization header for request: {}", requestURI);
+      response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+      response.getWriter().write("{\"error\":\"Missing or invalid Authorization header\"}");
       return;
     }
 
-    // Only process JWT for requests with valid Authorization headers
     String username = null;
     String jwt = null;
 
     try {
       jwt = authHeader.substring(7);
       username = jwtUtil.extractUsername(jwt);
-    } catch (Exception ignored) {
-      // If JWT extraction fails, continue without authentication
-      chain.doFilter(request, response);
+      logger.debug("Extracted username from JWT: {}", username);
+    } catch (Exception e) {
+      logger.error("Error extracting username from JWT: {}", e.getMessage());
+      response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+      response.getWriter().write("{\"error\":\"Invalid JWT token format\"}");
       return;
     }
 
     if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
       try {
+        logger.debug("Loading user details for username: {}", username);
         UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+        logger.debug("User details loaded, authorities: {}", userDetails.getAuthorities());
+
         if (jwtUtil.validateToken(jwt, userDetails)) {
+          logger.debug("JWT token validated successfully for user: {}", username);
           UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
               userDetails, null, userDetails.getAuthorities());
           authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
           SecurityContextHolder.getContext().setAuthentication(authToken);
+          logger.debug("Authentication set in SecurityContext for user: {}", username);
+        } else {
+          logger.warn("JWT token validation failed for user: {}", username);
+          response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+          response.getWriter().write("{\"error\":\"Invalid JWT token\"}");
+          return;
         }
-      } catch (Exception ignored) {
-        // If authentication fails, continue without authentication
+      } catch (Exception e) {
+        logger.error("Authentication failed for user {}: {}", username, e.getMessage());
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.getWriter().write("{\"error\":\"Authentication failed\"}");
+        return;
       }
+    } else {
+      logger.debug("Username is null or authentication already exists for request: {}", requestURI);
     }
 
+    logger.debug("JWT Filter completed successfully for request: {}", requestURI);
     chain.doFilter(request, response);
   }
 }

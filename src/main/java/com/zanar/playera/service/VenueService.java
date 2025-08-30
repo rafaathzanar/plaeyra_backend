@@ -162,26 +162,28 @@ public class VenueService {
   }
 
   /**
-   * Get venue by owner ID (each owner can have only one venue)
+   * Get venues by owner
    */
-  public VenueResponseDTO getVenueByOwner(Long ownerId) {
-    Venue venue = venueRepository.findAll().stream()
-        .filter(v -> v.getVenueOwner() != null && v.getVenueOwner().getUserId().equals(ownerId))
-        .findFirst()
-        .orElseThrow(() -> new RuntimeException("Venue not found for owner"));
-    return VenueMapper.toVenueResponseDTO(venue);
+  public List<VenueResponseDTO> getVenuesByOwner(Long ownerId) {
+    List<Venue> venues = venueRepository.findAll().stream()
+        .filter(venue -> venue.getVenueOwner().getUserId().equals(ownerId))
+        .collect(Collectors.toList());
+
+    return venues.stream()
+        .map(VenueMapper::toVenueResponseDTO)
+        .collect(Collectors.toList());
   }
 
   /**
-   * Get venues by owner (legacy method - returns list with single venue)
+   * Get venue by owner ID (each owner can have only one venue)
+   * Returns null if no venue exists (which is normal for new venue owners)
    */
-  public List<VenueResponseDTO> getVenuesByOwner(Long ownerId) {
-    try {
-      VenueResponseDTO venue = getVenueByOwner(ownerId);
-      return List.of(venue);
-    } catch (RuntimeException e) {
-      return new ArrayList<>();
-    }
+  public VenueResponseDTO getVenueByOwner(Long ownerId) {
+    return venueRepository.findAll().stream()
+        .filter(v -> v.getVenueOwner() != null && v.getVenueOwner().getUserId().equals(ownerId))
+        .findFirst()
+        .map(VenueMapper::toVenueResponseDTO)
+        .orElse(null); // Return null instead of throwing exception
   }
 
   /**

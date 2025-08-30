@@ -23,8 +23,11 @@ public class CustomUserDetailsService implements UserDetailsService {
     if (user == null) {
       throw new UsernameNotFoundException("User not found with email: " + email);
     }
-    String role = (user.getClass().getSimpleName().equals("Customer")) ? "ROLE_CUSTOMER" : "ROLE_VENUE_OWNER";
+
+    // Use the actual role field from the User entity
+    String role = "ROLE_" + user.getRole().name();
     GrantedAuthority authority = new SimpleGrantedAuthority(role);
+
     return new org.springframework.security.core.userdetails.User(
         user.getEmail(),
         user.getPassword(),

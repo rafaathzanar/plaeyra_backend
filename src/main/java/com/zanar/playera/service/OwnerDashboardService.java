@@ -27,7 +27,20 @@ public class OwnerDashboardService {
         Venue venue = venueRepository.findAll().stream()
                 .filter(v -> v.getVenueOwner() != null && v.getVenueOwner().getUserId().equals(ownerId))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("Venue not found for owner"));
+                .orElse(null); // Return null instead of throwing exception
+
+        // If no venue exists, return empty dashboard data
+        if (venue == null) {
+            DashboardSummaryDTO emptySummary = new DashboardSummaryDTO();
+            emptySummary.setTotalRevenue(0.0);
+            emptySummary.setTotalBookings(0);
+            emptySummary.setTotalCancellations(0);
+            emptySummary.setTotalEquipmentRentals(0);
+            emptySummary.setKpis(new ArrayList<>());
+            emptySummary.setRevenueStats(new ArrayList<>());
+            emptySummary.setAlerts(new ArrayList<>());
+            return emptySummary;
+        }
 
         List<Long> venueIds = List.of(venue.getVenueId());
         List<Booking> bookings = bookingRepository.findAll().stream()

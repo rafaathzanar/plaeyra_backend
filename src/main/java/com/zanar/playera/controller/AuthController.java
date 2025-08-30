@@ -145,6 +145,27 @@ public class AuthController {
     return ResponseEntity.ok().build();
   }
 
+  @GetMapping("/me")
+  @Operation(summary = "Get Current User", description = "Get information about the currently authenticated user")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Current user information retrieved successfully"),
+      @ApiResponse(responseCode = "401", description = "User not authenticated")
+  })
+  @SecurityRequirement(name = "Bearer Authentication")
+  public ResponseEntity<UserResponseDTO> getCurrentUser() {
+    // Get the current authenticated user from SecurityContext
+    org.springframework.security.core.Authentication authentication = org.springframework.security.core.context.SecurityContextHolder
+        .getContext().getAuthentication();
+
+    if (authentication != null && authentication.isAuthenticated()) {
+      String email = authentication.getName();
+      UserResponseDTO user = userService.getUserByEmail(email);
+      return ResponseEntity.ok(user);
+    } else {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+  }
+
   @GetMapping("/test")
   @Operation(summary = "Test Endpoint", description = "Simple test endpoint to verify security configuration")
   public ResponseEntity<String> test() {
