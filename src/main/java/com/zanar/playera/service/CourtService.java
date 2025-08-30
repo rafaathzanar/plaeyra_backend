@@ -41,8 +41,7 @@ public class CourtService {
   @Autowired
   private BookingRepository bookingRepository;
 
-  @Autowired
-  private CourtMapper courtMapper;
+  // CourtMapper is a static utility class, no need for @Autowired
 
   /**
    * Create a new court
@@ -67,7 +66,7 @@ public class CourtService {
   public CourtResponseDTO getCourtById(Long id) {
     Court court = courtRepository.findById(id)
         .orElseThrow(() -> new RuntimeException("Court not found"));
-    return courtMapper.toCourtResponseDTO(court);
+    return CourtMapper.toCourtResponseDTO(court);
   }
 
   /**

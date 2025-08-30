@@ -2,9 +2,12 @@ package com.zanar.playera.mapper;
 
 import com.zanar.playera.dto.VenueRequestDTO;
 import com.zanar.playera.dto.VenueResponseDTO;
+import com.zanar.playera.dto.CourtResponseDTO;
 import com.zanar.playera.entity.Venue;
 import com.zanar.playera.entity.VenueOwner;
+import com.zanar.playera.entity.Court;
 import org.springframework.stereotype.Component;
+import java.util.stream.Collectors;
 
 @Component
 public class VenueMapper {
@@ -29,12 +32,63 @@ public class VenueMapper {
     dto.setLocation(venue.getLocation());
     dto.setDescription(venue.getDescription());
     dto.setContactNo(venue.getContactNo());
+    dto.setEmail(venue.getEmail());
+    dto.setWebsite(venue.getWebsite());
+    dto.setLatitude(venue.getLatitude());
+    dto.setLongitude(venue.getLongitude());
+    dto.setStatus(venue.getStatus() != null ? venue.getStatus().name() : null);
+    dto.setVenueType(venue.getVenueType() != null ? venue.getVenueType().name() : null);
+    dto.setMaxCapacity(venue.getMaxCapacity());
+    dto.setParkingAvailable(venue.getParkingAvailable());
+    dto.setFoodAvailable(venue.getFoodAvailable());
+    dto.setChangingRoomsAvailable(venue.getChangingRoomsAvailable());
+    dto.setShowerAvailable(venue.getShowerAvailable());
+    dto.setWifiAvailable(venue.getWifiAvailable());
+    dto.setOpeningHours(venue.getOpeningHours());
+    dto.setCancellationPolicy(venue.getCancellationPolicy());
+    dto.setRefundPolicy(venue.getRefundPolicy());
+    dto.setBasePrice(venue.getBasePrice());
+    dto.setDynamicPricingEnabled(venue.getDynamicPricingEnabled());
+    dto.setPeakHourMultiplier(venue.getPeakHourMultiplier());
+    dto.setOffPeakMultiplier(venue.getOffPeakMultiplier());
+    dto.setWeekendMultiplier(venue.getWeekendMultiplier());
+    dto.setHolidayMultiplier(venue.getHolidayMultiplier());
+    dto.setPeakHourStart(venue.getPeakHourStart());
+    dto.setPeakHourEnd(venue.getPeakHourEnd());
+    dto.setSpecialEvents(venue.getSpecialEvents());
+    dto.setCommissionRate(venue.getCommissionRate());
+    dto.setAutoApprovalEnabled(venue.getAutoApprovalEnabled());
+    dto.setMinAdvanceBookingHours(venue.getMinAdvanceBookingHours());
+    dto.setMaxAdvanceBookingDays(venue.getMaxAdvanceBookingDays());
+    dto.setEarliestBookingTime(venue.getEarliestBookingTime());
+    dto.setLatestBookingTime(venue.getLatestBookingTime());
     dto.setImages(venue.getImages());
     dto.setAmenities(venue.getAmenities());
+
     if (venue.getVenueOwner() != null) {
       dto.setOwnerId(venue.getVenueOwner().getUserId());
       dto.setOwnerName(venue.getVenueOwner().getName());
     }
+
+    // Map courts if they exist
+    if (venue.getCourts() != null && !venue.getCourts().isEmpty()) {
+      dto.setCourts(venue.getCourts().stream()
+          .map(court -> {
+            CourtResponseDTO courtDto = new CourtResponseDTO();
+            courtDto.setCourtId(court.getCourtId());
+            courtDto.setCourtId(court.getCourtId());
+            courtDto.setName(court.getCourtName()); // Backward compatibility
+            courtDto.setSportType(court.getType() != null ? court.getType().name() : null); // Backward compatibility
+            courtDto.setSurfaceType(null); // Legacy field
+            courtDto.setStatus(court.getStatus() != null ? court.getStatus().name() : null);
+            courtDto.setPricePerHour(court.getPricePerHour() != null ? court.getPricePerHour().doubleValue() : null);
+            courtDto.setDescription(court.getDescription());
+            courtDto.setImageUrl(null); // Legacy field
+            return courtDto;
+          })
+          .collect(Collectors.toList()));
+    }
+
     return dto;
   }
 }

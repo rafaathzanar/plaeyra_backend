@@ -1,14 +1,11 @@
 package com.zanar.playera.mapper;
 
-import org.springframework.stereotype.Component;
-
 import com.zanar.playera.dto.ReviewRequestDTO;
 import com.zanar.playera.dto.ReviewResponseDTO;
 import com.zanar.playera.entity.Customer;
 import com.zanar.playera.entity.Review;
 import com.zanar.playera.entity.Venue;
 
-@Component
 public class ReviewMapper {
   public static Review toReviewEntity(ReviewRequestDTO dto, Customer customer, Venue venue) {
     Review review = new Review();

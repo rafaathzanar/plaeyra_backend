@@ -80,7 +80,28 @@ public class VenueController {
   }
 
   @PostMapping
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  @Operation(summary = "Create a new venue", description = "Creates a new sports venue. Only venue owners and admins can create venues.")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Venue created successfully"),
+      @ApiResponse(responseCode = "403", description = "Access denied - insufficient permissions"),
+      @ApiResponse(responseCode = "400", description = "Invalid venue data")
+  })
+  @SecurityRequirement(name = "Bearer Authentication")
   public ResponseEntity<VenueResponseDTO> createVenue(@RequestBody VenueRequestDTO dto) {
+    // Add debug logging
+    org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder
+        .getContext().getAuthentication();
+
+    if (auth != null) {
+      System.out.println("=== DEBUG: Venue Creation ===");
+      System.out.println("User: " + auth.getName());
+      System.out.println("Authorities: " + auth.getAuthorities());
+      System.out.println("Principal: " + auth.getPrincipal());
+      System.out.println("Venue Data: " + dto);
+      System.out.println("===============================");
+    }
+
     return ResponseEntity.ok(venueService.createVenue(dto));
   }
 
