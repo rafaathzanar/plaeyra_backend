@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
 
 @Entity
 @Data
@@ -27,60 +28,52 @@ public class Court {
     @Column(nullable = false)
     private String courtName;
 
-    @NotBlank(message = "Sport type is required")
-    @Column(nullable = false)
-    private String type;
+    @Enumerated(EnumType.STRING)
+    private CourtType type;
 
-    @Positive(message = "Capacity must be positive")
-    @Column(nullable = false)
     private Integer capacity;
 
-    @Positive(message = "Price per hour must be positive")
-    @Column(nullable = false)
-    private Double pricePerHour;
+    @Column(precision = 10, scale = 2)
+    private BigDecimal pricePerHour;
 
     private String description;
 
+
+
+    private Boolean isIndoor;
+    private Boolean isLighted;
+    private Boolean isAirConditioned;
+
+    private Integer minBookingDuration; // in hours
+    private Integer maxBookingDuration; // in hours
+
     @Enumerated(EnumType.STRING)
-    private CourtStatus status = CourtStatus.ACTIVE;
+    private CourtStatus status;
 
-    private String surfaceType; // e.g., Wood, Concrete, Grass, Artificial Turf
+    // Time slot management fields
+    private LocalTime openingTime; // e.g., 06:00
+    private LocalTime closingTime; // e.g., 23:00
+    private Integer slotDurationMinutes; // e.g., 30 for 30-minute slots
+    private Boolean isActiveOnWeekends;
+    private Boolean isActiveOnHolidays;
 
-    private Boolean isIndoor = true;
+    // Break times (for maintenance, cleaning, etc.)
+    private LocalTime breakStartTime; // e.g., 12:00 for lunch break
+    private LocalTime breakEndTime; // e.g., 13:00
+    private Boolean hasBreakTime;
 
-    private Boolean isLighted = false;
+    // Dynamic pricing fields
+    private Boolean dynamicPricingEnabled;
+    private LocalTime peakHourStart;
+    private LocalTime peakHourEnd;
+    private Double peakHourMultiplier;
+    private Double offPeakMultiplier;
+    private Double weekendMultiplier;
 
-    private Boolean isAirConditioned = false;
-
-    private String equipment; // Comma-separated list of available equipment
-
-    private Integer minBookingDuration = 1; // in hours
-
-    private Integer maxBookingDuration = 24; // in hours
-
-    private Boolean dynamicPricingEnabled = false;
-
-    private Double peakHourMultiplier = 1.5;
-
-    private Double offPeakMultiplier = 0.8;
-
-    private Double weekendMultiplier = 1.2;
-
-    private Double holidayMultiplier = 1.3;
-
-    private LocalTime peakHourStart = LocalTime.of(18, 0); // 6 PM
-
-    private LocalTime peakHourEnd = LocalTime.of(22, 0); // 10 PM
-
-    private String specialEvents; // JSON string for special event pricing
-
-    private Boolean maintenanceMode = false;
-
+    // Maintenance fields
+    private Boolean maintenanceMode;
     private LocalTime maintenanceStartTime;
-
     private LocalTime maintenanceEndTime;
-
-    private String maintenanceNotes;
 
     @ManyToOne
     @JoinColumn(name = "venue_id", nullable = false)
@@ -94,6 +87,12 @@ public class Court {
 
     @ElementCollection
     private Map<DayOfWeek, CourtAvailability> availabilitySchedule = new HashMap<>();
+
+    public enum CourtType {
+        BASKETBALL, FUTSAL, BADMINTON, TENNIS, CRICKET, MULTI_SPORT, VOLLEYBALL, SOCCER
+    }
+
+
 
     public enum CourtStatus {
         ACTIVE, INACTIVE, MAINTENANCE, RESERVED, DELETED
@@ -112,32 +111,32 @@ public class Court {
     }
 
     // Helper methods for dynamic pricing
-    public double calculateDynamicPrice(LocalTime time, DayOfWeek day) {
+    public BigDecimal calculateDynamicPrice(LocalTime time, DayOfWeek day) {
         if (!getDynamicPricingEnabled()) {
             return pricePerHour;
         }
 
-        double multiplier = 1.0;
+        BigDecimal multiplier = BigDecimal.ONE;
 
         // Peak hour pricing
         if (time.isAfter(peakHourStart) && time.isBefore(peakHourEnd)) {
-            multiplier *= peakHourMultiplier;
+            multiplier = multiplier.multiply(BigDecimal.valueOf(peakHourMultiplier));
         } else {
-            multiplier *= offPeakMultiplier;
+            multiplier = multiplier.multiply(BigDecimal.valueOf(offPeakMultiplier));
         }
 
         // Weekend pricing
         if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
-            multiplier *= weekendMultiplier;
+            multiplier = multiplier.multiply(BigDecimal.valueOf(weekendMultiplier));
         }
 
         // Check for special day pricing
         CourtAvailability availability = availabilitySchedule.get(day);
         if (availability != null && availability.getSpecialPrice() > 0) {
-            return availability.getSpecialPrice();
+            return BigDecimal.valueOf(availability.getSpecialPrice());
         }
 
-        return pricePerHour * multiplier;
+        return pricePerHour.multiply(multiplier);
     }
 
     public boolean isAvailable(DayOfWeek day, LocalTime time) {
@@ -207,5 +206,39 @@ public class Court {
                 .count();
 
         return (double) bookedSlots / slots.size();
+    }
+
+    // Helper methods for time slot management
+    public boolean isOpenAt(LocalTime time) {
+        if (time == null || openingTime == null || closingTime == null) {
+            return false;
+        }
+
+        // Check if time is within operating hours
+        boolean withinHours = !time.isBefore(openingTime) && !time.isAfter(closingTime);
+
+        // Check if time is during break time
+        if (hasBreakTime && breakStartTime != null && breakEndTime != null) {
+            boolean duringBreak = !time.isBefore(breakStartTime) && !time.isAfter(breakEndTime);
+            return withinHours && !duringBreak;
+        }
+
+        return withinHours;
+    }
+
+    public int getTotalSlotsPerDay() {
+        if (openingTime == null || closingTime == null || slotDurationMinutes == null) {
+            return 0;
+        }
+
+        long totalMinutes = java.time.Duration.between(openingTime, closingTime).toMinutes();
+
+        // Subtract break time if exists
+        if (hasBreakTime && breakStartTime != null && breakEndTime != null) {
+            long breakMinutes = java.time.Duration.between(breakStartTime, breakEndTime).toMinutes();
+            totalMinutes -= breakMinutes;
+        }
+
+        return (int) (totalMinutes / slotDurationMinutes);
     }
 }

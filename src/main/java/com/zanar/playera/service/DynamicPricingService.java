@@ -45,11 +45,11 @@ public class DynamicPricingService {
     Court court = courtRepository.findById(courtId)
         .orElseThrow(() -> new RuntimeException("Court not found"));
 
-    if (!court.isDynamicPricingEnabled()) {
-      return court.getPricePerHour();
+    if (!court.getDynamicPricingEnabled()) {
+      return court.getPricePerHour().doubleValue();
     }
 
-    return court.calculateDynamicPrice(dateTime.toLocalTime(), dateTime.getDayOfWeek());
+    return court.calculateDynamicPrice(dateTime.toLocalTime(), dateTime.getDayOfWeek()).doubleValue();
   }
 
   /**
@@ -59,7 +59,7 @@ public class DynamicPricingService {
     Venue venue = venueRepository.findById(venueId)
         .orElseThrow(() -> new RuntimeException("Venue not found"));
 
-    if (!venue.isDynamicPricingEnabled()) {
+    if (!venue.getDynamicPricingEnabled()) {
       return venue.getBasePrice();
     }
 
@@ -156,7 +156,7 @@ public class DynamicPricingService {
     court.setPeakHourMultiplier(dto.getPeakHourMultiplier());
     court.setOffPeakMultiplier(dto.getOffPeakMultiplier());
     court.setWeekendMultiplier(dto.getWeekendMultiplier());
-    court.setHolidayMultiplier(dto.getHolidayMultiplier());
+    // setHolidayMultiplier method not available in Court entity
     court.setPeakHourStart(dto.getPeakHourStart());
     court.setPeakHourEnd(dto.getPeakHourEnd());
 

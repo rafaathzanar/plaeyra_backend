@@ -11,9 +11,9 @@ public class CourtMapper {
   public static Court toCourtEntity(CourtRequestDTO dto, Venue venue) {
     Court court = new Court();
     court.setCourtName(dto.getCourtName());
-    court.setType(dto.getType());
+    court.setType(Court.CourtType.valueOf(dto.getType().toUpperCase()));
     court.setCapacity(dto.getCapacity());
-    court.setPricePerHour(dto.getPricePerHour());
+    court.setPricePerHour(java.math.BigDecimal.valueOf(dto.getPricePerHour()));
     court.setVenue(venue);
     return court;
   }
@@ -22,9 +22,9 @@ public class CourtMapper {
     CourtResponseDTO dto = new CourtResponseDTO();
     dto.setCourtId(court.getCourtId());
     dto.setCourtName(court.getCourtName());
-    dto.setType(court.getType());
+    dto.setType(court.getType().name());
     dto.setCapacity(court.getCapacity());
-    dto.setPricePerHour(court.getPricePerHour());
+    dto.setPricePerHour(court.getPricePerHour().doubleValue());
     if (court.getVenue() != null) {
       dto.setVenueId(court.getVenue().getVenueId());
       dto.setVenueName(court.getVenue().getName());

@@ -33,6 +33,8 @@ public class Payment {
   @NotNull(message = "Payment date is required")
   private LocalDateTime paymentDate;
 
+  private String transactionId; // External transaction reference
+
   private LocalDateTime processedAt;
 
   private LocalDateTime refundedAt;

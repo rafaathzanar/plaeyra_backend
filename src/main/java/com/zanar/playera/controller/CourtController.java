@@ -53,7 +53,7 @@ public class CourtController {
   public ResponseEntity<Page<CourtResponseDTO>> getAllCourts(
       @RequestParam(required = false) Long venueId,
       @RequestParam(required = false) String sportType,
-      @RequestParam(required = false) String surfaceType,
+
       @RequestParam(required = false) Boolean isIndoor,
       @RequestParam(required = false) Boolean isLighted,
       @RequestParam(required = false) Boolean isAirConditioned,
@@ -63,7 +63,7 @@ public class CourtController {
       Pageable pageable) {
 
     Page<CourtResponseDTO> courts = courtService.getAllCourts(
-        venueId, sportType, surfaceType, isIndoor, isLighted,
+        venueId, sportType, isIndoor, isLighted,
         isAirConditioned, minPrice, maxPrice, status, pageable);
     return ResponseEntity.ok(courts);
   }

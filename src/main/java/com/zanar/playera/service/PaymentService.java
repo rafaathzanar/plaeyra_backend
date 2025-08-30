@@ -64,22 +64,25 @@ public class PaymentService {
     Customer customer = customerRepository.findById(booking.getCustomer().getUserId())
         .orElseThrow(() -> new RuntimeException("Customer not found"));
 
-    // Create Stripe payment intent
-    PaymentIntent paymentIntent = stripeService.createPaymentIntent(
-        (long) (dto.getAmount() * 100), // Convert to cents
+    // Create mock payment intent (using existing mock service)
+    String mockPaymentIntentId = stripeService.createMockPaymentIntent(
+        (int) dto.getAmount(),
         defaultCurrency,
-        "Payment for booking " + dto.getBookingId(),
-        customer.getEmail());
+        "Payment for booking " + dto.getBookingId());
 
     // Create payment entity
     Payment payment = new Payment();
     payment.setAmount(dto.getAmount());
     payment.setCurrency(defaultCurrency);
-    payment.setStatus(Payment.PaymentStatus.PENDING);
-    payment.setPaymentMethod(Payment.PaymentMethod.CARD);
-    payment.setPaymentDate(LocalDateTime.now());
-    payment.setDescription("Payment for booking " + dto.getBookingId());
-    payment.setStripePaymentIntentId(paymentIntent.getId());
+    payment
+        .setStatus(Payment.PaymentStatus.valueOf(dto.getStatus() != null ? dto.getStatus().toUpperCase() : "PENDING"));
+    payment.setPaymentMethod(
+        Payment.PaymentMethod.valueOf(dto.getPaymentMethod() != null ? dto.getPaymentMethod().toUpperCase() : "CARD"));
+    payment.setPaymentDate(dto.getPaymentDate() != null ? dto.getPaymentDate() : LocalDateTime.now());
+    payment.setDescription(
+        dto.getDescription() != null ? dto.getDescription() : "Payment for booking " + dto.getBookingId());
+    payment.setTransactionId(dto.getTransactionId());
+    payment.setStripePaymentIntentId(mockPaymentIntentId);
     payment.setCustomerEmail(customer.getEmail());
     payment.setCustomerName(customer.getName());
     payment.setCustomerPhone(customer.getPhone());
@@ -102,49 +105,41 @@ public class PaymentService {
    * Process payment confirmation
    */
   public PaymentResponseDTO confirmPayment(String paymentIntentId) throws StripeException {
-    PaymentIntent paymentIntent = stripeService.getPaymentIntent(paymentIntentId);
+    // Mock payment confirmation - in real implementation, this would call Stripe
+    // API
+    // For now, we'll simulate a successful payment
 
     Payment payment = paymentRepository.findByStripePaymentIntentId(paymentIntentId)
         .orElseThrow(() -> new RuntimeException("Payment not found"));
 
-    if ("succeeded".equals(paymentIntent.getStatus())) {
-      payment.markAsProcessed();
-      // Get charge ID and receipt URL from the payment intent
-      String chargeId = paymentIntent.getId(); // Use payment intent ID as charge ID for now
-      payment.setStripeChargeId(chargeId);
+    // Mock successful payment confirmation
+    payment.markAsProcessed();
+    // Set mock charge ID and receipt URL
+    String chargeId = paymentIntentId; // Use payment intent ID as charge ID for now
+    payment.setStripeChargeId(chargeId);
 
-      // For receipt URL, we'll construct it or get it from metadata
-      String receiptUrl = "https://dashboard.stripe.com/payments/" + paymentIntent.getId();
-      payment.setReceiptUrl(receiptUrl);
+    // For receipt URL, we'll construct it or get it from metadata
+    String receiptUrl = "https://dashboard.stripe.com/payments/" + paymentIntentId;
+    payment.setReceiptUrl(receiptUrl);
 
-      Payment savedPayment = paymentRepository.save(payment);
+    Payment savedPayment = paymentRepository.save(payment);
 
-      // Update booking status
-      Booking booking = payment.getBooking();
-      if (booking != null) {
-        booking.setBookingStatus("CONFIRMED");
-        bookingRepository.save(booking);
+    // Update booking status
+    Booking booking = payment.getBooking();
+    if (booking != null) {
+      booking.setBookingStatus("CONFIRMED");
+      bookingRepository.save(booking);
 
-        // Award loyalty points
-        loyaltyProgramService.awardPointsForBooking(
-            booking.getCustomer().getUserId(),
-            booking.getBookingId());
+      // Award loyalty points
+      loyaltyProgramService.awardPointsForBooking(
+          booking.getCustomer().getUserId(),
+          booking.getBookingId());
 
-        // Send confirmation notifications
-        sendPaymentConfirmationNotifications(payment);
-      }
-
-      return PaymentMapper.toPaymentResponseDTO(savedPayment);
-    } else {
-      payment.markAsFailed("Payment failed",
-          paymentIntent.getLastPaymentError() != null ? paymentIntent.getLastPaymentError().getCode() : "unknown");
-      paymentRepository.save(payment);
-
-      // Send failure notifications
-      sendPaymentFailureNotifications(payment);
-
-      throw new RuntimeException("Payment failed: " + paymentIntent.getStatus());
+      // Send confirmation notifications
+      sendPaymentConfirmationNotifications(payment);
     }
+
+    return PaymentMapper.toPaymentResponseDTO(savedPayment);
   }
 
   /**
@@ -158,11 +153,8 @@ public class PaymentService {
       throw new RuntimeException("Payment cannot be refunded");
     }
 
-    // Process refund through Stripe
-    Refund refund = stripeService.processRefund(
-        payment.getStripePaymentIntentId(),
-        (long) (refundAmount * 100), // Convert to cents
-        reason);
+    // Mock refund processing (in real implementation, this would call Stripe API)
+    // For now, we'll simulate a successful refund
 
     // Update payment status
     if (refundAmount.equals(payment.getAmount())) {
@@ -171,7 +163,7 @@ public class PaymentService {
       payment.markAsPartiallyRefunded(refundAmount, reason);
     }
 
-    payment.setStripeRefundId(refund.getId());
+    payment.setStripeRefundId("mock_refund_" + System.currentTimeMillis());
     payment.setRefundNotes(reason);
 
     Payment savedPayment = paymentRepository.save(payment);

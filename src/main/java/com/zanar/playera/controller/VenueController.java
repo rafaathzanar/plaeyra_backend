@@ -100,6 +100,7 @@ public class VenueController {
       @ApiResponse(responseCode = "200", description = "Venue details retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = VenueResponseDTO.class))),
       @ApiResponse(responseCode = "404", description = "Venue not found")
   })
+  // Public endpoint - no authentication required
   public ResponseEntity<VenueResponseDTO> getVenueById(
       @Parameter(description = "Unique identifier of the venue", required = true) @PathVariable Long id) {
     VenueResponseDTO venue = venueService.getVenueById(id);
@@ -111,6 +112,7 @@ public class VenueController {
   @ApiResponses(value = {
       @ApiResponse(responseCode = "200", description = "Venues retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Page.class)))
   })
+  // Public endpoint - no authentication required
   public ResponseEntity<Page<VenueResponseDTO>> getAllVenues(
       @Parameter(description = "Filter by venue location (city, area)") @RequestParam(required = false) String location,
       @Parameter(description = "Filter by supported sport type") @RequestParam(required = false) String sportType,

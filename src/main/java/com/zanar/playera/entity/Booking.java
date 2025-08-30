@@ -18,6 +18,7 @@ public class Booking {
     private int duration; // in hours
     private double totalCost;
     private String bookingStatus;
+    private String specialRequests; // Optional special requests from customer
 
     @ManyToOne
     @JoinColumn(name = "customer_id")

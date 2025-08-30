@@ -46,8 +46,22 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
                         @Param("startTime") LocalTime startTime,
                         @Param("endTime") LocalTime endTime);
 
-            // Find slots by booking
-    List<Slot> findByBooking_BookingId(Long bookingId);
+        // Find overlapping slots (used by TimeSlotService)
+        @Query("SELECT s FROM Slot s WHERE s.court.courtId = :courtId AND s.date = :date " +
+                        "AND s.status IN ('BOOKED', 'RESERVED') " +
+                        "AND ((s.startTime < :endTime AND s.endTime > :startTime))")
+        List<Slot> findOverlappingSlots(
+                        @Param("courtId") Long courtId,
+                        @Param("date") LocalDate date,
+                        @Param("startTime") LocalTime startTime,
+                        @Param("endTime") LocalTime endTime);
+
+        // Find specific slot by court, date, time and status (used by TimeSlotService)
+        Slot findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatus(
+                        Long courtId, LocalDate date, LocalTime startTime, LocalTime endTime, Slot.SlotStatus status);
+
+        // Find slots by booking
+        List<Slot> findByBooking_BookingId(Long bookingId);
 
         // Count available slots by court and date
         long countByCourt_CourtIdAndDateAndStatus(Long courtId, LocalDate date, Slot.SlotStatus status);

@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -70,10 +71,11 @@ public class BookingService {
         booking.setDuration(dto.getDurationInHours());
         booking.setBookingStatus("PENDING");
         booking.setTotalCost(0.0);
+        booking.setSpecialRequests(dto.getSpecialRequests());
 
         // Process court bookings with slot validation
         List<BookingCourt> bookingCourts = new ArrayList<>();
-        double totalCourtCost = 0.0;
+        BigDecimal totalCourtCost = BigDecimal.ZERO;
 
         if (dto.getCourtBookings() != null && !dto.getCourtBookings().isEmpty()) {
             for (BookingRequestDTO.CourtBookingDTO courtBooking : dto.getCourtBookings()) {
@@ -99,7 +101,8 @@ public class BookingService {
                 bookingCourt.setTimeDuration(courtBooking.getTimeDuration());
                 bookingCourts.add(bookingCourt);
 
-                totalCourtCost += court.getPricePerHour() * courtBooking.getTimeDuration();
+                totalCourtCost = totalCourtCost
+                        .add(court.getPricePerHour().multiply(BigDecimal.valueOf(courtBooking.getTimeDuration())));
             }
         }
 
@@ -107,7 +110,7 @@ public class BookingService {
 
         // Process equipment bookings
         List<BookingEquipment> bookingEquipments = new ArrayList<>();
-        double totalEquipmentCost = 0.0;
+        BigDecimal totalEquipmentCost = BigDecimal.ZERO;
 
         if (dto.getEquipmentBookings() != null && !dto.getEquipmentBookings().isEmpty()) {
             for (BookingRequestDTO.EquipmentBookingDTO equipmentBooking : dto.getEquipmentBookings()) {
@@ -122,10 +125,11 @@ public class BookingService {
                 }
 
                 // Calculate costs
-                double unitPrice = equipment.getRatePerHour();
-                double totalPrice = equipment.calculateRentalCost(equipmentBooking.getQuantity(),
-                        equipmentBooking.getTimeDuration());
-                double depositAmount = equipment.calculateDeposit(equipmentBooking.getQuantity());
+                BigDecimal unitPrice = BigDecimal.valueOf(equipment.getRatePerHour());
+                BigDecimal totalPrice = BigDecimal.valueOf(equipment.calculateRentalCost(equipmentBooking.getQuantity(),
+                        equipmentBooking.getTimeDuration()));
+                BigDecimal depositAmount = BigDecimal
+                        .valueOf(equipment.calculateDeposit(equipmentBooking.getQuantity()));
 
                 // Create booking equipment record
                 BookingEquipment bookingEquipment = new BookingEquipment();
@@ -133,13 +137,13 @@ public class BookingService {
                 bookingEquipment.setEquipment(equipment);
                 bookingEquipment.setQuantity(equipmentBooking.getQuantity());
                 bookingEquipment.setTimeDuration(equipmentBooking.getTimeDuration());
-                bookingEquipment.setUnitPrice(unitPrice);
-                bookingEquipment.setTotalPrice(totalPrice);
-                bookingEquipment.setDepositAmount(depositAmount);
+                bookingEquipment.setUnitPrice(unitPrice.doubleValue());
+                bookingEquipment.setTotalPrice(totalPrice.doubleValue());
+                bookingEquipment.setDepositAmount(depositAmount.doubleValue());
                 bookingEquipment.setStatus(BookingEquipment.RentalStatus.RENTED);
                 bookingEquipments.add(bookingEquipment);
 
-                totalEquipmentCost += totalPrice;
+                totalEquipmentCost = totalEquipmentCost.add(totalPrice);
 
                 // Reserve equipment (reduce available quantity)
                 equipment.reserve(equipmentBooking.getQuantity());
@@ -148,7 +152,7 @@ public class BookingService {
         }
 
         booking.setBookingEquipments(bookingEquipments);
-        booking.setTotalCost(totalCourtCost + totalEquipmentCost);
+        booking.setTotalCost(totalCourtCost.add(totalEquipmentCost).doubleValue());
 
         // Save booking and related entities
         Booking savedBooking = bookingRepository.save(booking);
