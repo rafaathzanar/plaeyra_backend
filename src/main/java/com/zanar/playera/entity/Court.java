@@ -38,8 +38,6 @@ public class Court {
 
     private String description;
 
-
-
     private Boolean isIndoor;
     private Boolean isLighted;
     private Boolean isAirConditioned;
@@ -91,8 +89,6 @@ public class Court {
     public enum CourtType {
         BASKETBALL, FUTSAL, BADMINTON, TENNIS, CRICKET, MULTI_SPORT, VOLLEYBALL, SOCCER
     }
-
-
 
     public enum CourtStatus {
         ACTIVE, INACTIVE, MAINTENANCE, RESERVED, DELETED
