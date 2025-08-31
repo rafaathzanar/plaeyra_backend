@@ -191,31 +191,66 @@ public class TimeSlotService {
   public void blockTimeSlot(Long courtId, LocalDate date, LocalTime startTime, LocalTime endTime, String reason,
       boolean isMaintenance) {
     // Check if slot is already blocked
-    List<Slot> existingSlots = slotRepository.findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatusIn(
+    List<Slot> existingBlockedSlots = slotRepository.findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatusIn(
         courtId, date, startTime, endTime,
         Arrays.asList(Slot.SlotStatus.RESERVED, Slot.SlotStatus.MAINTENANCE));
 
-    if (!existingSlots.isEmpty()) {
+    if (!existingBlockedSlots.isEmpty()) {
       log.warn("Slot already blocked for court {} on {} from {} to {}", courtId, date, startTime, endTime);
       return;
     }
 
-    Slot blockedSlot = new Slot();
-    blockedSlot.setCourt(courtRepository.findById(courtId).orElse(null));
-    blockedSlot.setDate(date);
-    blockedSlot.setStartTime(startTime);
-    blockedSlot.setEndTime(endTime);
+    // Find all available slots that overlap with the requested time range
+    List<Slot> overlappingSlots = findOverlappingSlotsForBlocking(courtId, date, startTime, endTime);
 
-    // Set status based on whether it's maintenance or general blocking
-    if (isMaintenance) {
-      blockedSlot.setStatus(Slot.SlotStatus.MAINTENANCE);
-    } else {
-      blockedSlot.setStatus(Slot.SlotStatus.RESERVED);
+    if (overlappingSlots.isEmpty()) {
+      log.warn("No available slots found to block for court {} on {} from {} to {}", courtId, date, startTime, endTime);
+      return;
     }
 
-    slotRepository.save(blockedSlot);
-    log.info("Blocked time slot for court {} on {} from {} to {}: {} (Status: {})",
-        courtId, date, startTime, endTime, reason, blockedSlot.getStatus());
+    // Update the status of overlapping slots to blocked
+    for (Slot slot : overlappingSlots) {
+      if (slot.getStatus() == Slot.SlotStatus.AVAILABLE) {
+        // Set status based on whether it's maintenance or general blocking
+        if (isMaintenance) {
+          slot.setStatus(Slot.SlotStatus.MAINTENANCE);
+        } else {
+          slot.setStatus(Slot.SlotStatus.RESERVED);
+        }
+
+        // Add reason as a note (you might want to add a reason field to Slot entity)
+        log.info("Blocking slot {} for court {} on {} from {} to {}: {} (Status: {})",
+            slot.getId(), courtId, date, slot.getStartTime(), slot.getEndTime(), reason, slot.getStatus());
+      }
+    }
+
+    // Save all updated slots
+    slotRepository.saveAll(overlappingSlots);
+    log.info("Blocked {} time slots for court {} on {} from {} to {}: {} (Status: {})",
+        overlappingSlots.size(), courtId, date, startTime, endTime, reason,
+        isMaintenance ? "MAINTENANCE" : "RESERVED");
+  }
+
+  /**
+   * Find slots that overlap with a given time range
+   * This method handles partial overlaps and exact matches
+   */
+  private List<Slot> findOverlappingSlotsForBlocking(Long courtId, LocalDate date, LocalTime startTime,
+      LocalTime endTime) {
+    // Get all available slots for the date
+    List<Slot> availableSlots = slotRepository.findByCourt_CourtIdAndDateAndStatus(courtId, date,
+        Slot.SlotStatus.AVAILABLE);
+
+    List<Slot> overlappingSlots = new ArrayList<>();
+
+    for (Slot slot : availableSlots) {
+      // Check if slot overlaps with the blocking time range
+      if (slot.getStartTime().isBefore(endTime) && slot.getEndTime().isAfter(startTime)) {
+        overlappingSlots.add(slot);
+      }
+    }
+
+    return overlappingSlots;
   }
 
   /**
@@ -225,32 +260,57 @@ public class TimeSlotService {
       LocalTime startTime, LocalTime endTime, String reason,
       boolean isMaintenance, List<Integer> recurringDays) {
     LocalDate currentDate = startDate;
+    int totalBlockedDays = 0;
 
     while (!currentDate.isAfter(endDate)) {
       DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
       int dayValue = dayOfWeek.getValue() - 1; // Convert to 0-based index (Monday = 0)
 
       if (recurringDays.contains(dayValue)) {
-        blockTimeSlot(courtId, currentDate, startTime, endTime, reason, isMaintenance);
+        try {
+          blockTimeSlot(courtId, currentDate, startTime, endTime, reason, isMaintenance);
+          totalBlockedDays++;
+        } catch (Exception e) {
+          log.error("Failed to block recurring slot for court {} on date {}: {}", courtId, currentDate, e.getMessage());
+        }
       }
 
       currentDate = currentDate.plusDays(1);
     }
+
+    log.info("Completed recurring block for court {}: {} days blocked from {} to {}",
+        courtId, totalBlockedDays, startDate, endDate);
   }
 
   /**
    * Unblock a time slot
    */
   public void unblockTimeSlot(Long courtId, LocalDate date, LocalTime startTime, LocalTime endTime) {
-    // Find slots with any blocked status
-    List<Slot> blockedSlots = slotRepository.findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatusIn(
-        courtId, date, startTime, endTime,
-        Arrays.asList(Slot.SlotStatus.RESERVED, Slot.SlotStatus.MAINTENANCE));
+    // Find slots with any blocked status that overlap with the requested time range
+    List<Slot> allSlots = slotRepository.findByCourt_CourtIdAndDate(courtId, date);
 
-    for (Slot blockedSlot : blockedSlots) {
-      slotRepository.delete(blockedSlot);
-      log.info("Unblocked time slot for court {} on {} from {} to {} (Status: {})",
-          courtId, date, startTime, endTime, blockedSlot.getStatus());
+    int unblockedCount = 0;
+    for (Slot slot : allSlots) {
+      // Check if slot overlaps with the unblocking time range
+      if (slot.getStartTime().isBefore(endTime) && slot.getEndTime().isAfter(startTime)) {
+        if (slot.getStatus() == Slot.SlotStatus.RESERVED || slot.getStatus() == Slot.SlotStatus.MAINTENANCE) {
+          // Reset status back to AVAILABLE
+          slot.setStatus(Slot.SlotStatus.AVAILABLE);
+          unblockedCount++;
+          log.info("Unblocking slot {} for court {} on {} from {} to {} (Status: {})",
+              slot.getId(), courtId, date, slot.getStartTime(), slot.getEndTime(), slot.getStatus());
+        }
+      }
+    }
+
+    if (unblockedCount > 0) {
+      // Save all updated slots
+      slotRepository.saveAll(allSlots);
+      log.info("Unblocked {} time slots for court {} on {} from {} to {}",
+          unblockedCount, courtId, date, startTime, endTime);
+    } else {
+      log.warn("No blocked slots found to unblock for court {} on {} from {} to {}",
+          courtId, date, startTime, endTime);
     }
   }
 
