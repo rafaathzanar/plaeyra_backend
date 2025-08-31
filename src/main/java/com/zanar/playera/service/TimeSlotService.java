@@ -21,6 +21,7 @@ public class TimeSlotService {
   private final CourtRepository courtRepository;
   private final SlotRepository slotRepository;
   private final BookingRepository bookingRepository;
+  private final SlotGenerationService slotGenerationService;
 
   /**
    * Generate available time slots for a court on a specific date
@@ -260,17 +261,36 @@ public class TimeSlotService {
     Court court = courtRepository.findById(courtId)
         .orElseThrow(() -> new RuntimeException("Court not found"));
 
-    // Generate all possible slots for the day
-    List<TimeSlotDTO> allSlots = generateAllSlotsForDate(court, date);
+    // Ensure slots are generated for this date
+    slotGenerationService.generateSlotsForDate(court, date);
 
-    // Get all blocked/reserved slots for this date
-    List<Slot> blockedSlots = slotRepository.findByCourt_CourtIdAndDateAndStatusIn(
-        courtId, date, Arrays.asList(Slot.SlotStatus.BOOKED, Slot.SlotStatus.RESERVED, Slot.SlotStatus.MAINTENANCE));
+    // Get all stored slots for this date
+    List<Slot> storedSlots = slotRepository.findByCourt_CourtIdAndDate(courtId, date);
 
-    // Mark blocked slots as unavailable
-    markBlockedSlotsAsUnavailable(allSlots, blockedSlots);
+    // Convert stored slots to DTOs
+    List<TimeSlotDTO> allSlots = storedSlots.stream()
+        .map(this::convertSlotToDTO)
+        .collect(Collectors.toList());
 
     return allSlots;
+  }
+
+  /**
+   * Convert a stored Slot entity to TimeSlotDTO
+   */
+  private TimeSlotDTO convertSlotToDTO(Slot slot) {
+    return TimeSlotDTO.builder()
+        .startTime(slot.getStartTime())
+        .endTime(slot.getEndTime())
+        .date(slot.getDate())
+        .courtId(slot.getCourt().getCourtId())
+        .courtName(slot.getCourt().getCourtName())
+        .venueName(slot.getCourt().getVenue().getName())
+        .pricePerHour(slot.getCourt().getPricePerHour())
+        .available(slot.getStatus() == Slot.SlotStatus.AVAILABLE)
+        .bookingId(slot.getBooking() != null ? slot.getBooking().getBookingId() : null)
+        .status(slot.getStatus().name())
+        .build();
   }
 
   /**
@@ -452,6 +472,11 @@ public class TimeSlotService {
 
       public TimeSlotDTOBuilder status(String status) {
         timeSlotDTO.status = status;
+        return this;
+      }
+
+      public TimeSlotDTOBuilder bookingId(Long bookingId) {
+        timeSlotDTO.bookingId = bookingId;
         return this;
       }
 

@@ -84,6 +84,12 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
         @Query("SELECT s FROM Slot s WHERE s.date < :currentDate AND s.status = 'BOOKED'")
         List<Slot> findExpiredBookedSlots(@Param("currentDate") LocalDate currentDate);
 
+        // Check if slots exist for a court on a specific date
+        boolean existsByCourt_CourtIdAndDate(Long courtId, LocalDate date);
+
+        // Find all slots for a court on a specific date
+        List<Slot> findByCourt_CourtIdAndDate(Long courtId, LocalDate date);
+
         // Legacy method for backward compatibility
         List<Slot> findByCourt_CourtIdAndStatus(Long courtId, Slot.SlotStatus status);
 }

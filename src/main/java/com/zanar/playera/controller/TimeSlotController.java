@@ -1,5 +1,6 @@
 package com.zanar.playera.controller;
 
+import com.zanar.playera.service.SlotGenerationService;
 import com.zanar.playera.service.TimeSlotService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ import java.util.Map;
 public class TimeSlotController {
 
   private final TimeSlotService timeSlotService;
+  private final SlotGenerationService slotGenerationService;
 
   /**
    * Get available time slots for a court on a specific date
@@ -225,6 +227,35 @@ public class TimeSlotController {
     } catch (Exception e) {
       log.error("Error getting peak hours for court {}", courtId, e);
       return ResponseEntity.badRequest().build();
+    }
+  }
+
+  /**
+   * Manually generate time slots for a court (for testing/debugging)
+   */
+  @PostMapping("/court/{courtId}/generate-slots")
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  public ResponseEntity<Map<String, String>> generateTimeSlots(
+      @PathVariable Long courtId,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+    try {
+      slotGenerationService.generateSlotsForDateRange(courtId, startDate, endDate);
+
+      Map<String, String> response = new HashMap<>();
+      response.put("message", "Time slots generated successfully");
+      response.put("status", "SUCCESS");
+
+      return ResponseEntity.ok(response);
+    } catch (Exception e) {
+      log.error("Error generating time slots for court {} from {} to {}", courtId, startDate, endDate, e);
+
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("message", "Failed to generate time slots: " + e.getMessage());
+      errorResponse.put("status", "ERROR");
+
+      return ResponseEntity.badRequest().body(errorResponse);
     }
   }
 }
