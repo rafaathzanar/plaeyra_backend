@@ -125,6 +125,18 @@
 			<version>2.10.1</version>
 		</dependency>
 		
+		<!-- WebSocket support -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-websocket</artifactId>
+		</dependency>
+		
+		<!-- Jackson for JSON processing -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+		</dependency>
+		
 		<!-- H2 Database for testing -->
 		<dependency>
 			<groupId>com.h2database</groupId>

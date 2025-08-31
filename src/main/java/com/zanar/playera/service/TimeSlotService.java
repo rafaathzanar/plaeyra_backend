@@ -330,7 +330,7 @@ public class TimeSlotService {
         .orElseThrow(() -> new RuntimeException("Court not found"));
 
     // Ensure slots are generated for this date
-    slotGenerationService.generateSlotsForDate(court, date);
+    slotGenerationService.generateSlotsForDate(courtId, date);
 
     // Get all stored slots for this date
     List<Slot> storedSlots = slotRepository.findByCourt_CourtIdAndDate(courtId, date);
