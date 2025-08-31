@@ -264,12 +264,18 @@ public class TimeSlotService {
     LocalDate currentDate = startDate;
     int totalBlockedDays = 0;
 
+    log.info("Starting recurring block for court {}: {} to {}, time: {} to {}, days: {}",
+        courtId, startDate, endDate, startTime, endTime, recurringDays);
+
     while (!currentDate.isAfter(endDate)) {
       DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
-      int dayValue = dayOfWeek.getValue() - 1; // Convert to 0-based index (Monday = 0)
+      // Frontend sends: Sunday=0, Monday=1, Tuesday=2, etc.
+      // Java DayOfWeek: Sunday=7, Monday=1, Tuesday=2, etc.
+      int dayValue = dayOfWeek == DayOfWeek.SUNDAY ? 0 : dayOfWeek.getValue();
 
       if (recurringDays.contains(dayValue)) {
         try {
+          log.info("Blocking recurring slot for court {} on {} (day value: {})", courtId, currentDate, dayValue);
           blockTimeSlot(courtId, currentDate, startTime, endTime, reason, isMaintenance);
           totalBlockedDays++;
         } catch (Exception e) {

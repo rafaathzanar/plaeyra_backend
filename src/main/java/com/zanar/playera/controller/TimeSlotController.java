@@ -158,6 +158,10 @@ public class TimeSlotController {
       @RequestParam List<Integer> recurringDays) {
 
     try {
+      log.info(
+          "Received recurring block request - Court: {}, Dates: {} to {}, Time: {} to {}, Reason: {}, Maintenance: {}, Days: {}",
+          courtId, startDate, endDate, startTime, endTime, reason, isMaintenance, recurringDays);
+
       java.time.LocalTime start = java.time.LocalTime.parse(startTime);
       java.time.LocalTime end = java.time.LocalTime.parse(endTime);
 
