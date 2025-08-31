@@ -42,7 +42,7 @@ public class BookingMapper {
         eqdto.setTimeDuration(be.getTimeDuration());
         eqdto.setUnitPrice(be.getUnitPrice());
         eqdto.setTotalPrice(be.getTotalPrice());
-        eqdto.setDepositAmount(be.getDepositAmount());
+
         eqdto.setRentalStatus(be.getStatus().name());
         eqdto.setReturnDate(be.getReturnDate());
         eqdto.setReturnNotes(be.getReturnNotes());

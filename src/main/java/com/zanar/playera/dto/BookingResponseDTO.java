@@ -32,12 +32,12 @@ public class BookingResponseDTO {
     private int timeDuration;
     private double unitPrice;
     private double totalPrice;
-    private double depositAmount;
+
     private String rentalStatus;
     private LocalDateTime returnDate;
     private String returnNotes;
     private boolean isReturned;
-    
+
     // Explicit setter for isReturned to ensure it's available
     public void setIsReturned(boolean isReturned) {
       this.isReturned = isReturned;

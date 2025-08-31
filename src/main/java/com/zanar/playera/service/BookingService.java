@@ -128,8 +128,7 @@ public class BookingService {
                 BigDecimal unitPrice = BigDecimal.valueOf(equipment.getRatePerHour());
                 BigDecimal totalPrice = BigDecimal.valueOf(equipment.calculateRentalCost(equipmentBooking.getQuantity(),
                         equipmentBooking.getTimeDuration()));
-                BigDecimal depositAmount = BigDecimal
-                        .valueOf(equipment.calculateDeposit(equipmentBooking.getQuantity()));
+                BigDecimal depositAmount = BigDecimal.ZERO; // No deposit required
 
                 // Create booking equipment record
                 BookingEquipment bookingEquipment = new BookingEquipment();
@@ -139,7 +138,7 @@ public class BookingService {
                 bookingEquipment.setTimeDuration(equipmentBooking.getTimeDuration());
                 bookingEquipment.setUnitPrice(unitPrice.doubleValue());
                 bookingEquipment.setTotalPrice(totalPrice.doubleValue());
-                bookingEquipment.setDepositAmount(depositAmount.doubleValue());
+                // No deposit required
                 bookingEquipment.setStatus(BookingEquipment.RentalStatus.RENTED);
                 bookingEquipments.add(bookingEquipment);
 

@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,11 +22,12 @@ import java.util.List;
 @Validated
 @CrossOrigin(origins = "*")
 public class EquipmentController {
-    
+
     @Autowired
     private EquipmentService equipmentService;
 
     @GetMapping
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
     @Operation(summary = "Get all equipment", description = "Retrieve all equipment in the system")
     public ResponseEntity<List<EquipmentResponseDTO>> listEquipment() {
         List<EquipmentResponseDTO> equipment = equipmentService.listEquipment();
@@ -33,6 +35,7 @@ public class EquipmentController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
     @Operation(summary = "Get equipment by ID", description = "Retrieve a specific equipment by its ID")
     public ResponseEntity<EquipmentResponseDTO> getEquipmentById(@PathVariable Long id) {
         try {
@@ -44,20 +47,31 @@ public class EquipmentController {
     }
 
     @GetMapping("/court/{courtId}")
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
     @Operation(summary = "Get equipment by court", description = "Retrieve all equipment for a specific court")
     public ResponseEntity<List<EquipmentResponseDTO>> listEquipmentByCourt(@PathVariable Long courtId) {
         List<EquipmentResponseDTO> equipment = equipmentService.listEquipmentByCourt(courtId);
         return ResponseEntity.ok(equipment);
     }
-    
+
     @GetMapping("/court/{courtId}/available")
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
     @Operation(summary = "Get available equipment by court", description = "Retrieve only available equipment for a specific court")
     public ResponseEntity<List<EquipmentResponseDTO>> listAvailableEquipmentByCourt(@PathVariable Long courtId) {
         List<EquipmentResponseDTO> equipment = equipmentService.listAvailableEquipmentByCourt(courtId);
         return ResponseEntity.ok(equipment);
     }
 
+    @GetMapping("/venue/{venueId}")
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+    @Operation(summary = "Get equipment by venue", description = "Retrieve all equipment for a specific venue")
+    public ResponseEntity<List<EquipmentResponseDTO>> listEquipmentByVenue(@PathVariable Long venueId) {
+        List<EquipmentResponseDTO> equipment = equipmentService.getEquipmentByVenue(venueId);
+        return ResponseEntity.ok(equipment);
+    }
+
     @PostMapping
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
     @Operation(summary = "Create equipment", description = "Create a new equipment item")
     public ResponseEntity<EquipmentResponseDTO> createEquipment(@Valid @RequestBody EquipmentRequestDTO dto) {
         try {
@@ -69,6 +83,7 @@ public class EquipmentController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
     @Operation(summary = "Update equipment", description = "Update an existing equipment item")
     public ResponseEntity<EquipmentResponseDTO> updateEquipment(@PathVariable Long id,
             @Valid @RequestBody EquipmentRequestDTO dto) {
@@ -81,6 +96,7 @@ public class EquipmentController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
     @Operation(summary = "Delete equipment", description = "Delete an equipment item")
     public ResponseEntity<Void> deleteEquipment(@PathVariable Long id) {
         try {
@@ -90,10 +106,11 @@ public class EquipmentController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
     // Equipment rental specific endpoints
-    
+
     @GetMapping("/{id}/availability")
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
     @Operation(summary = "Check equipment availability", description = "Check if equipment is available for rental")
     public ResponseEntity<Boolean> checkEquipmentAvailability(
             @PathVariable Long id,
@@ -105,8 +122,9 @@ public class EquipmentController {
             return ResponseEntity.notFound().build();
         }
     }
-    
+
     @GetMapping("/{id}/calculate-cost")
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
     @Operation(summary = "Calculate rental cost", description = "Calculate the cost for renting equipment")
     public ResponseEntity<Double> calculateRentalCost(
             @PathVariable Long id,
@@ -119,21 +137,9 @@ public class EquipmentController {
             return ResponseEntity.notFound().build();
         }
     }
-    
-    @GetMapping("/{id}/calculate-deposit")
-    @Operation(summary = "Calculate deposit amount", description = "Calculate the deposit amount for equipment")
-    public ResponseEntity<Double> calculateDeposit(
-            @PathVariable Long id,
-            @RequestParam @Min(1) int quantity) {
-        try {
-            double deposit = equipmentService.calculateDeposit(id, quantity);
-            return ResponseEntity.ok(deposit);
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
-    }
-    
+
     @PostMapping("/{id}/reserve")
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
     @Operation(summary = "Reserve equipment", description = "Reserve equipment for a booking")
     public ResponseEntity<Void> reserveEquipment(
             @PathVariable Long id,
@@ -145,8 +151,9 @@ public class EquipmentController {
             return ResponseEntity.badRequest().build();
         }
     }
-    
+
     @PostMapping("/{id}/release")
+    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
     @Operation(summary = "Release equipment", description = "Release reserved equipment")
     public ResponseEntity<Void> releaseEquipment(
             @PathVariable Long id,
