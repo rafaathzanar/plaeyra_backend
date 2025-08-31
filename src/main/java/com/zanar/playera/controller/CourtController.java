@@ -20,6 +20,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/courts")
@@ -191,12 +192,35 @@ public class CourtController {
   @PostMapping("/{id}/dynamic-pricing")
   @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
   @Operation(summary = "Update dynamic pricing", description = "Updates dynamic pricing configuration for the court")
-  public ResponseEntity<Void> updateDynamicPricing(
+  public ResponseEntity<Map<String, Object>> updateDynamicPricing(
       @PathVariable Long id,
       @RequestBody Map<String, Object> pricingSettings) {
 
-    dynamicPricingService.updateDynamicPricing(id, pricingSettings);
-    return ResponseEntity.ok().build();
+    try {
+      dynamicPricingService.updateDynamicPricing(id, pricingSettings);
+
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", true);
+      response.put("message", "Dynamic pricing settings updated successfully");
+      response.put("courtId", id);
+
+      return ResponseEntity.ok(response);
+    } catch (Exception e) {
+      Map<String, Object> errorResponse = new HashMap<>();
+      errorResponse.put("success", false);
+      errorResponse.put("message", e.getMessage());
+      errorResponse.put("courtId", id);
+
+      return ResponseEntity.badRequest().body(errorResponse);
+    }
+  }
+
+  @GetMapping("/{id}/dynamic-pricing")
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  @Operation(summary = "Get dynamic pricing settings", description = "Gets current dynamic pricing configuration for the court")
+  public ResponseEntity<Map<String, Object>> getDynamicPricingSettings(@PathVariable Long id) {
+    Map<String, Object> settings = dynamicPricingService.getDynamicPricingSettings(id);
+    return ResponseEntity.ok(settings);
   }
 
   @GetMapping("/{id}/slots")

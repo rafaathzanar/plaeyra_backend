@@ -212,36 +212,157 @@ public class DynamicPricingService {
    * Update dynamic pricing settings for a court
    */
   public void updateDynamicPricing(Long courtId, Map<String, Object> pricingSettings) {
-    Court court = courtRepository.findById(courtId)
-        .orElseThrow(() -> new RuntimeException("Court not found"));
+    try {
+      Court court = courtRepository.findById(courtId)
+          .orElseThrow(() -> new RuntimeException("Court not found"));
 
-    // Update dynamic pricing fields
-    if (pricingSettings.containsKey("dynamicPricingEnabled")) {
-      court.setDynamicPricingEnabled((Boolean) pricingSettings.get("dynamicPricingEnabled"));
+      log.info("Updating dynamic pricing for court {} with settings: {}", courtId, pricingSettings);
+
+      // Update dynamic pricing fields with safe conversion
+      if (pricingSettings.containsKey("dynamicPricingEnabled")) {
+        Object value = pricingSettings.get("dynamicPricingEnabled");
+        if (value instanceof Boolean) {
+          court.setDynamicPricingEnabled((Boolean) value);
+        } else if (value instanceof String) {
+          court.setDynamicPricingEnabled(Boolean.parseBoolean((String) value));
+        } else {
+          court.setDynamicPricingEnabled(Boolean.TRUE.equals(value));
+        }
+        log.debug("Set dynamicPricingEnabled to: {}", court.getDynamicPricingEnabled());
+      }
+
+      if (pricingSettings.containsKey("peakHourStart")) {
+        Object value = pricingSettings.get("peakHourStart");
+        try {
+          if (value instanceof String) {
+            String timeStr = (String) value;
+            // Handle different time formats
+            if (timeStr.matches("\\d{1,2}:\\d{2}")) {
+              court.setPeakHourStart(LocalTime.parse(timeStr));
+            } else if (timeStr.matches("\\d{1,2}")) {
+              court.setPeakHourStart(LocalTime.of(Integer.parseInt(timeStr), 0));
+            } else {
+              log.warn("Invalid peakHourStart format: {}, using default 18:00", timeStr);
+              court.setPeakHourStart(LocalTime.of(18, 0));
+            }
+          }
+        } catch (Exception e) {
+          log.error("Error parsing peakHourStart: {}, using default 18:00", value, e);
+          court.setPeakHourStart(LocalTime.of(18, 0));
+        }
+        log.debug("Set peakHourStart to: {}", court.getPeakHourStart());
+      }
+
+      if (pricingSettings.containsKey("peakHourEnd")) {
+        Object value = pricingSettings.get("peakHourEnd");
+        try {
+          if (value instanceof String) {
+            String timeStr = (String) value;
+            // Handle different time formats
+            if (timeStr.matches("\\d{1,2}:\\d{2}")) {
+              court.setPeakHourEnd(LocalTime.parse(timeStr));
+            } else if (timeStr.matches("\\d{1,2}")) {
+              court.setPeakHourEnd(LocalTime.of(Integer.parseInt(timeStr), 0));
+            } else {
+              log.warn("Invalid peakHourEnd format: {}, using default 22:00", timeStr);
+              court.setPeakHourEnd(LocalTime.of(22, 0));
+            }
+          }
+        } catch (Exception e) {
+          log.error("Error parsing peakHourEnd: {}, using default 22:00", value, e);
+          court.setPeakHourEnd(LocalTime.of(22, 0));
+        }
+        log.debug("Set peakHourEnd to: {}", court.getPeakHourEnd());
+      }
+
+      if (pricingSettings.containsKey("peakHourMultiplier")) {
+        Object value = pricingSettings.get("peakHourMultiplier");
+        try {
+          if (value instanceof Number) {
+            court.setPeakHourMultiplier(((Number) value).doubleValue());
+          } else if (value instanceof String) {
+            court.setPeakHourMultiplier(Double.parseDouble((String) value));
+          } else {
+            log.warn("Invalid peakHourMultiplier type: {}, using default 1.5", value);
+            court.setPeakHourMultiplier(1.5);
+          }
+        } catch (Exception e) {
+          log.error("Error parsing peakHourMultiplier: {}, using default 1.5", value, e);
+          court.setPeakHourMultiplier(1.5);
+        }
+        log.debug("Set peakHourMultiplier to: {}", court.getPeakHourMultiplier());
+      }
+
+      if (pricingSettings.containsKey("offPeakMultiplier")) {
+        Object value = pricingSettings.get("offPeakMultiplier");
+        try {
+          if (value instanceof Number) {
+            court.setOffPeakMultiplier(((Number) value).doubleValue());
+          } else if (value instanceof String) {
+            court.setOffPeakMultiplier(Double.parseDouble((String) value));
+          } else {
+            log.warn("Invalid offPeakMultiplier type: {}, using default 0.8", value);
+            court.setOffPeakMultiplier(0.8);
+          }
+        } catch (Exception e) {
+          log.error("Error parsing offPeakMultiplier: {}, using default 0.8", value, e);
+          court.setOffPeakMultiplier(0.8);
+        }
+        log.debug("Set offPeakMultiplier to: {}", court.getOffPeakMultiplier());
+      }
+
+      if (pricingSettings.containsKey("weekendMultiplier")) {
+        Object value = pricingSettings.get("weekendMultiplier");
+        try {
+          if (value instanceof Number) {
+            court.setWeekendMultiplier(((Number) value).doubleValue());
+          } else if (value instanceof String) {
+            court.setWeekendMultiplier(Double.parseDouble((String) value));
+          } else {
+            log.warn("Invalid weekendMultiplier type: {}, using default 1.2", value);
+            court.setWeekendMultiplier(1.2);
+          }
+        } catch (Exception e) {
+          log.error("Error parsing weekendMultiplier: {}, using default 1.2", value, e);
+          court.setWeekendMultiplier(1.2);
+        }
+        log.debug("Set weekendMultiplier to: {}", court.getWeekendMultiplier());
+      }
+
+      // Validate the settings
+      validateDynamicPricingSettings(court);
+
+      courtRepository.save(court);
+      log.info("Successfully updated dynamic pricing settings for court {}", courtId);
+
+    } catch (Exception e) {
+      log.error("Error updating dynamic pricing for court {}: {}", courtId, e.getMessage(), e);
+      throw new RuntimeException("Failed to update dynamic pricing settings: " + e.getMessage(), e);
     }
+  }
 
-    if (pricingSettings.containsKey("peakHourStart")) {
-      court.setPeakHourStart(LocalTime.parse((String) pricingSettings.get("peakHourStart")));
+  /**
+   * Validate dynamic pricing settings
+   */
+  private void validateDynamicPricingSettings(Court court) {
+    if (court.getDynamicPricingEnabled()) {
+      // Ensure required fields are set
+      if (court.getPeakHourStart() == null) {
+        court.setPeakHourStart(LocalTime.of(18, 0));
+      }
+      if (court.getPeakHourEnd() == null) {
+        court.setPeakHourEnd(LocalTime.of(22, 0));
+      }
+      if (court.getPeakHourMultiplier() == null || court.getPeakHourMultiplier() <= 0) {
+        court.setPeakHourMultiplier(1.5);
+      }
+      if (court.getOffPeakMultiplier() == null || court.getOffPeakMultiplier() <= 0) {
+        court.setOffPeakMultiplier(0.8);
+      }
+      if (court.getWeekendMultiplier() == null || court.getWeekendMultiplier() <= 0) {
+        court.setWeekendMultiplier(1.2);
+      }
     }
-
-    if (pricingSettings.containsKey("peakHourEnd")) {
-      court.setPeakHourEnd(LocalTime.parse((String) pricingSettings.get("peakHourEnd")));
-    }
-
-    if (pricingSettings.containsKey("peakHourMultiplier")) {
-      court.setPeakHourMultiplier(Double.parseDouble(pricingSettings.get("peakHourMultiplier").toString()));
-    }
-
-    if (pricingSettings.containsKey("offPeakMultiplier")) {
-      court.setOffPeakMultiplier(Double.parseDouble(pricingSettings.get("offPeakMultiplier").toString()));
-    }
-
-    if (pricingSettings.containsKey("weekendMultiplier")) {
-      court.setWeekendMultiplier(Double.parseDouble(pricingSettings.get("weekendMultiplier").toString()));
-    }
-
-    courtRepository.save(court);
-    log.info("Updated dynamic pricing settings for court {}", courtId);
   }
 
   /**
@@ -288,5 +409,32 @@ public class DynamicPricingService {
     analytics.put("pricingSummary", pricingSummary);
 
     return analytics;
+  }
+
+  /**
+   * Get current dynamic pricing settings for a court
+   */
+  public Map<String, Object> getDynamicPricingSettings(Long courtId) {
+    try {
+      Court court = courtRepository.findById(courtId)
+          .orElseThrow(() -> new RuntimeException("Court not found"));
+
+      Map<String, Object> settings = new HashMap<>();
+      settings.put("dynamicPricingEnabled",
+          court.getDynamicPricingEnabled() != null ? court.getDynamicPricingEnabled() : false);
+      settings.put("peakHourStart", court.getPeakHourStart() != null ? court.getPeakHourStart().toString() : "18:00");
+      settings.put("peakHourEnd", court.getPeakHourEnd() != null ? court.getPeakHourEnd().toString() : "22:00");
+      settings.put("peakHourMultiplier", court.getPeakHourMultiplier() != null ? court.getPeakHourMultiplier() : 1.5);
+      settings.put("offPeakMultiplier", court.getOffPeakMultiplier() != null ? court.getOffPeakMultiplier() : 0.8);
+      settings.put("weekendMultiplier", court.getWeekendMultiplier() != null ? court.getWeekendMultiplier() : 1.2);
+      settings.put("basePrice", court.getPricePerHour());
+
+      log.debug("Retrieved dynamic pricing settings for court {}: {}", courtId, settings);
+      return settings;
+
+    } catch (Exception e) {
+      log.error("Error getting dynamic pricing settings for court {}: {}", courtId, e.getMessage(), e);
+      throw new RuntimeException("Failed to get dynamic pricing settings: " + e.getMessage(), e);
+    }
   }
 }
