@@ -2,7 +2,7 @@ package com.zanar.playera.controller;
 
 import com.zanar.playera.dto.CourtRequestDTO;
 import com.zanar.playera.dto.CourtResponseDTO;
-import com.zanar.playera.dto.DynamicPricingDTO;
+
 import com.zanar.playera.service.CourtService;
 import com.zanar.playera.service.DynamicPricingService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -193,9 +193,9 @@ public class CourtController {
   @Operation(summary = "Update dynamic pricing", description = "Updates dynamic pricing configuration for the court")
   public ResponseEntity<Void> updateDynamicPricing(
       @PathVariable Long id,
-      @RequestBody DynamicPricingDTO dynamicPricingDTO) {
+      @RequestBody Map<String, Object> pricingSettings) {
 
-    dynamicPricingService.updateCourtDynamicPricing(id, dynamicPricingDTO);
+    dynamicPricingService.updateDynamicPricing(id, pricingSettings);
     return ResponseEntity.ok().build();
   }
 

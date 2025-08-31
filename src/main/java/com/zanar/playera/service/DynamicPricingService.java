@@ -1,213 +1,292 @@
 package com.zanar.playera.service;
 
-import com.zanar.playera.dto.DynamicPricingDTO;
 import com.zanar.playera.entity.Court;
-import com.zanar.playera.entity.Venue;
+import com.zanar.playera.entity.Slot;
 import com.zanar.playera.repo.CourtRepository;
-import com.zanar.playera.repo.VenueRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import com.zanar.playera.repo.SlotRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class DynamicPricingService {
 
-  @Autowired
-  private VenueRepository venueRepository;
-
-  @Autowired
-  private CourtRepository courtRepository;
-
-  @Value("${pricing.peak-hour-multiplier:1.5}")
-  private double defaultPeakHourMultiplier;
-
-  @Value("${pricing.off-peak-multiplier:0.8}")
-  private double defaultOffPeakMultiplier;
-
-  @Value("${pricing.weekend-multiplier:1.2}")
-  private double defaultWeekendMultiplier;
-
-  @Value("${pricing.holiday-multiplier:1.3}")
-  private double defaultHolidayMultiplier;
+  private final CourtRepository courtRepository;
+  private final SlotRepository slotRepository;
 
   /**
-   * Calculate dynamic price for a court at a specific time
+   * Calculate dynamic price for a specific time slot
    */
-  public double calculateCourtPrice(Long courtId, LocalDateTime dateTime) {
-    Court court = courtRepository.findById(courtId)
-        .orElseThrow(() -> new RuntimeException("Court not found"));
-
-    if (!court.getDynamicPricingEnabled()) {
-      return court.getPricePerHour().doubleValue();
+  public BigDecimal calculateSlotPrice(Court court, LocalDate date, LocalTime startTime, LocalTime endTime) {
+    if (!Boolean.TRUE.equals(court.getDynamicPricingEnabled())) {
+      return court.getPricePerHour();
     }
 
-    return court.calculateDynamicPrice(dateTime.toLocalTime(), dateTime.getDayOfWeek()).doubleValue();
+    // Calculate duration in hours
+    long durationMinutes = java.time.Duration.between(startTime, endTime).toMinutes();
+    BigDecimal durationHours = BigDecimal.valueOf(durationMinutes).divide(BigDecimal.valueOf(60), 2,
+        RoundingMode.HALF_UP);
+
+    // Get base price per hour
+    BigDecimal basePrice = court.getPricePerHour();
+    if (basePrice == null) {
+      log.warn("Base price not set for court {}", court.getCourtId());
+      return BigDecimal.ZERO;
+    }
+
+    // Calculate price for each hour segment
+    BigDecimal totalPrice = BigDecimal.ZERO;
+    LocalTime currentTime = startTime;
+
+    while (currentTime.isBefore(endTime)) {
+      LocalTime segmentEnd = currentTime.plusHours(1);
+      if (segmentEnd.isAfter(endTime)) {
+        segmentEnd = endTime;
+      }
+
+      // Calculate price for this hour segment
+      BigDecimal segmentPrice = calculateHourPrice(court, date, currentTime);
+      totalPrice = totalPrice.add(segmentPrice);
+
+      currentTime = segmentEnd;
+    }
+
+    return totalPrice.setScale(2, RoundingMode.HALF_UP);
   }
 
   /**
-   * Calculate dynamic price for a venue at a specific time
+   * Calculate price for a specific hour
    */
-  public double calculateVenuePrice(Long venueId, LocalDateTime dateTime) {
-    Venue venue = venueRepository.findById(venueId)
-        .orElseThrow(() -> new RuntimeException("Venue not found"));
+  private BigDecimal calculateHourPrice(Court court, LocalDate date, LocalTime time) {
+    BigDecimal basePrice = court.getPricePerHour();
+    BigDecimal multiplier = BigDecimal.ONE;
+    DayOfWeek dayOfWeek = date.getDayOfWeek();
 
-    if (!venue.getDynamicPricingEnabled()) {
-      return venue.getBasePrice();
+    // Peak hour pricing
+    if (isPeakHour(court, time)) {
+      multiplier = multiplier
+          .multiply(BigDecimal.valueOf(court.getPeakHourMultiplier() != null ? court.getPeakHourMultiplier() : 1.5));
+      log.debug("Peak hour multiplier applied: {}", court.getPeakHourMultiplier());
+    } else {
+      multiplier = multiplier
+          .multiply(BigDecimal.valueOf(court.getOffPeakMultiplier() != null ? court.getOffPeakMultiplier() : 0.8));
+      log.debug("Off-peak multiplier applied: {}", court.getOffPeakMultiplier());
     }
 
-    return venue.calculateDynamicPrice(venue.getBasePrice(), dateTime.toLocalTime(), dateTime.getDayOfWeek());
+    // Weekend pricing
+    if (isWeekend(dayOfWeek)) {
+      multiplier = multiplier
+          .multiply(BigDecimal.valueOf(court.getWeekendMultiplier() != null ? court.getWeekendMultiplier() : 1.2));
+      log.debug("Weekend multiplier applied: {}", court.getWeekendMultiplier());
+    }
+
+    // Special day pricing (holidays, events, etc.)
+    BigDecimal specialPrice = getSpecialDayPrice(court, date, time);
+    if (specialPrice != null) {
+      return specialPrice;
+    }
+
+    return basePrice.multiply(multiplier).setScale(2, RoundingMode.HALF_UP);
   }
 
   /**
-   * Get pricing for multiple time slots
+   * Check if time is during peak hours
    */
-  public Map<LocalTime, Double> getPricingForTimeSlots(Long courtId, LocalDate date, List<LocalTime> timeSlots) {
-    Map<LocalTime, Double> pricing = new HashMap<>();
-
-    for (LocalTime time : timeSlots) {
-      LocalDateTime dateTime = LocalDateTime.of(date, time);
-      pricing.put(time, calculateCourtPrice(courtId, dateTime));
+  private boolean isPeakHour(Court court, LocalTime time) {
+    if (court.getPeakHourStart() == null || court.getPeakHourEnd() == null) {
+      return false;
     }
 
-    return pricing;
+    // Handle peak hours that span midnight
+    if (court.getPeakHourStart().isAfter(court.getPeakHourEnd())) {
+      return time.isAfter(court.getPeakHourStart()) || time.isBefore(court.getPeakHourEnd());
+    } else {
+      return time.isAfter(court.getPeakHourStart()) && time.isBefore(court.getPeakHourEnd());
+    }
   }
 
   /**
-   * Calculate demand-based pricing
+   * Check if day is weekend
    */
-  public double calculateDemandBasedPricing(double basePrice, int availableSlots, int totalSlots) {
-    if (totalSlots == 0)
-      return basePrice;
-
-    double occupancyRate = (double) (totalSlots - availableSlots) / totalSlots;
-
-    if (occupancyRate > 0.8) {
-      // High demand - increase price
-      return basePrice * 1.3;
-    } else if (occupancyRate > 0.6) {
-      // Medium demand - slight increase
-      return basePrice * 1.1;
-    } else if (occupancyRate < 0.2) {
-      // Low demand - decrease price
-      return basePrice * 0.9;
-    }
-
-    return basePrice;
+  private boolean isWeekend(DayOfWeek dayOfWeek) {
+    return dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY;
   }
 
   /**
-   * Check if it's a holiday (Sri Lankan holidays)
+   * Get special day pricing (holidays, events, etc.)
    */
-  public boolean isHoliday(LocalDate date) {
-    // This is a simplified version. In production, you'd have a proper holiday
-    // calendar
+  private BigDecimal getSpecialDayPrice(Court court, LocalDate date, LocalTime time) {
+    // Check if there's a special price for this day
+    Court.CourtAvailability availability = court.getAvailabilitySchedule().get(date.getDayOfWeek());
+    if (availability != null && availability.getSpecialPrice() != null && availability.getSpecialPrice() > 0) {
+      return BigDecimal.valueOf(availability.getSpecialPrice());
+    }
+
+    // Check if it's a holiday
+    if (isHoliday(date)) {
+      return court.getPricePerHour().multiply(BigDecimal.valueOf(1.5)); // 50% premium for holidays
+    }
+
+    return null; // No special pricing
+  }
+
+  /**
+   * Check if date is a holiday
+   */
+  private boolean isHoliday(LocalDate date) {
     int month = date.getMonthValue();
     int day = date.getDayOfMonth();
 
-    // Sri Lankan National Day
-    if (month == 2 && day == 4)
-      return true;
-
-    // Sinhala and Tamil New Year (April 13-14)
-    if (month == 4 && (day == 13 || day == 14))
-      return true;
-
-    // May Day
-    if (month == 5 && day == 1)
-      return true;
-
-    // Independence Day
-    if (month == 2 && day == 4)
-      return true;
-
-    // Christmas
-    if (month == 12 && day == 25)
-      return true;
-
-    return false;
+    // Example holidays (Sri Lanka) - you can enhance this with a holiday API or
+    // database
+    return (month == 1 && day == 1) || // New Year
+        (month == 4 && day == 13) || // Sinhala & Tamil New Year
+        (month == 5 && day == 1) || // May Day
+        (month == 12 && day == 25); // Christmas
   }
 
   /**
-   * Calculate holiday pricing
+   * Get pricing summary for a date range
    */
-  public double calculateHolidayPricing(double basePrice, LocalDate date) {
-    if (isHoliday(date)) {
-      return basePrice * defaultHolidayMultiplier;
-    }
-    return basePrice;
-  }
-
-  /**
-   * Update dynamic pricing configuration for a court
-   */
-  public void updateCourtDynamicPricing(Long courtId, DynamicPricingDTO dto) {
+  public Map<LocalDate, Map<LocalTime, BigDecimal>> getPricingSummary(Long courtId, LocalDate startDate,
+      LocalDate endDate) {
     Court court = courtRepository.findById(courtId)
         .orElseThrow(() -> new RuntimeException("Court not found"));
 
-    court.setDynamicPricingEnabled(dto.isEnabled());
-    court.setPeakHourMultiplier(dto.getPeakHourMultiplier());
-    court.setOffPeakMultiplier(dto.getOffPeakMultiplier());
-    court.setWeekendMultiplier(dto.getWeekendMultiplier());
-    // setHolidayMultiplier method not available in Court entity
-    court.setPeakHourStart(dto.getPeakHourStart());
-    court.setPeakHourEnd(dto.getPeakHourEnd());
+    Map<LocalDate, Map<LocalTime, BigDecimal>> pricingSummary = new HashMap<>();
+    LocalDate currentDate = startDate;
+
+    while (!currentDate.isAfter(endDate)) {
+      if (isCourtAvailableOnDate(court, currentDate)) {
+        Map<LocalTime, BigDecimal> dayPricing = new HashMap<>();
+
+        // Generate hourly pricing for the day
+        LocalTime currentTime = court.getOpeningTime();
+        while (currentTime.isBefore(court.getClosingTime())) {
+          BigDecimal price = calculateHourPrice(court, currentDate, currentTime);
+          dayPricing.put(currentTime, price);
+          currentTime = currentTime.plusHours(1);
+        }
+
+        pricingSummary.put(currentDate, dayPricing);
+      }
+
+      currentDate = currentDate.plusDays(1);
+    }
+
+    return pricingSummary;
+  }
+
+  /**
+   * Check if court is available on a specific date
+   */
+  private boolean isCourtAvailableOnDate(Court court, LocalDate date) {
+    DayOfWeek dayOfWeek = date.getDayOfWeek();
+
+    // Check if court is active on weekends
+    if (isWeekend(dayOfWeek) && !Boolean.TRUE.equals(court.getIsActiveOnWeekends())) {
+      return false;
+    }
+
+    // Check if court is active on holidays
+    if (isHoliday(date) && !Boolean.TRUE.equals(court.getIsActiveOnHolidays())) {
+      return false;
+    }
+
+    // Check if court status is active
+    return Court.CourtStatus.ACTIVE.equals(court.getStatus());
+  }
+
+  /**
+   * Update dynamic pricing settings for a court
+   */
+  public void updateDynamicPricing(Long courtId, Map<String, Object> pricingSettings) {
+    Court court = courtRepository.findById(courtId)
+        .orElseThrow(() -> new RuntimeException("Court not found"));
+
+    // Update dynamic pricing fields
+    if (pricingSettings.containsKey("dynamicPricingEnabled")) {
+      court.setDynamicPricingEnabled((Boolean) pricingSettings.get("dynamicPricingEnabled"));
+    }
+
+    if (pricingSettings.containsKey("peakHourStart")) {
+      court.setPeakHourStart(LocalTime.parse((String) pricingSettings.get("peakHourStart")));
+    }
+
+    if (pricingSettings.containsKey("peakHourEnd")) {
+      court.setPeakHourEnd(LocalTime.parse((String) pricingSettings.get("peakHourEnd")));
+    }
+
+    if (pricingSettings.containsKey("peakHourMultiplier")) {
+      court.setPeakHourMultiplier(Double.parseDouble(pricingSettings.get("peakHourMultiplier").toString()));
+    }
+
+    if (pricingSettings.containsKey("offPeakMultiplier")) {
+      court.setOffPeakMultiplier(Double.parseDouble(pricingSettings.get("offPeakMultiplier").toString()));
+    }
+
+    if (pricingSettings.containsKey("weekendMultiplier")) {
+      court.setWeekendMultiplier(Double.parseDouble(pricingSettings.get("weekendMultiplier").toString()));
+    }
 
     courtRepository.save(court);
+    log.info("Updated dynamic pricing settings for court {}", courtId);
   }
 
   /**
-   * Update dynamic pricing configuration for a venue
+   * Get pricing analytics for a court
    */
-  public void updateVenueDynamicPricing(Long venueId, DynamicPricingDTO dto) {
-    Venue venue = venueRepository.findById(venueId)
-        .orElseThrow(() -> new RuntimeException("Venue not found"));
+  public Map<String, Object> getPricingAnalytics(Long courtId, LocalDate startDate, LocalDate endDate) {
+    Court court = courtRepository.findById(courtId)
+        .orElseThrow(() -> new RuntimeException("Court not found"));
 
-    venue.setDynamicPricingEnabled(dto.isEnabled());
-    venue.setPeakHourMultiplier(dto.getPeakHourMultiplier());
-    venue.setOffPeakMultiplier(dto.getOffPeakMultiplier());
-    venue.setWeekendMultiplier(dto.getWeekendMultiplier());
-    venue.setHolidayMultiplier(dto.getHolidayMultiplier());
-    venue.setPeakHourStart(dto.getPeakHourStart());
-    venue.setPeakHourEnd(dto.getPeakHourEnd());
+    Map<String, Object> analytics = new HashMap<>();
 
-    venueRepository.save(venue);
-  }
+    // Get pricing summary
+    Map<LocalDate, Map<LocalTime, BigDecimal>> pricingSummary = getPricingSummary(courtId, startDate, endDate);
 
-  /**
-   * Get pricing recommendations based on historical data
-   */
-  public Map<String, Double> getPricingRecommendations(Long courtId) {
-    // This would integrate with analytics service to provide data-driven
-    // recommendations
-    Map<String, Double> recommendations = new HashMap<>();
+    // Calculate average prices
+    BigDecimal totalPrice = BigDecimal.ZERO;
+    int totalSlots = 0;
+    BigDecimal maxPrice = BigDecimal.ZERO;
+    BigDecimal minPrice = court.getPricePerHour();
 
-    recommendations.put("peak_hour_multiplier", 1.4);
-    recommendations.put("off_peak_multiplier", 0.85);
-    recommendations.put("weekend_multiplier", 1.15);
-    recommendations.put("holiday_multiplier", 1.25);
+    for (Map<LocalTime, BigDecimal> dayPricing : pricingSummary.values()) {
+      for (BigDecimal price : dayPricing.values()) {
+        totalPrice = totalPrice.add(price);
+        totalSlots++;
 
-    return recommendations;
-  }
+        if (price.compareTo(maxPrice) > 0) {
+          maxPrice = price;
+        }
 
-  /**
-   * Calculate bulk booking discount
-   */
-  public double calculateBulkBookingDiscount(double totalPrice, int hours) {
-    if (hours >= 8) {
-      return totalPrice * 0.15; // 15% discount for 8+ hours
-    } else if (hours >= 4) {
-      return totalPrice * 0.10; // 10% discount for 4+ hours
-    } else if (hours >= 2) {
-      return totalPrice * 0.05; // 5% discount for 2+ hours
+        if (price.compareTo(minPrice) < 0) {
+          minPrice = price;
+        }
+      }
     }
-    return 0.0;
+
+    BigDecimal averagePrice = totalSlots > 0
+        ? totalPrice.divide(BigDecimal.valueOf(totalSlots), 2, RoundingMode.HALF_UP)
+        : BigDecimal.ZERO;
+
+    analytics.put("averagePrice", averagePrice);
+    analytics.put("maxPrice", maxPrice);
+    analytics.put("minPrice", minPrice);
+    analytics.put("totalSlots", totalSlots);
+    analytics.put("pricingSummary", pricingSummary);
+
+    return analytics;
   }
 }

@@ -12,6 +12,7 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +23,7 @@ public class TimeSlotService {
   private final SlotRepository slotRepository;
   private final BookingRepository bookingRepository;
   private final SlotGenerationService slotGenerationService;
+  private final DynamicPricingService dynamicPricingService;
 
   /**
    * Generate available time slots for a court on a specific date
@@ -339,6 +341,13 @@ public class TimeSlotService {
    * Convert a stored Slot entity to TimeSlotDTO
    */
   private TimeSlotDTO convertSlotToDTO(Slot slot) {
+    // Calculate dynamic price for this slot
+    BigDecimal dynamicPrice = dynamicPricingService.calculateSlotPrice(
+        slot.getCourt(),
+        slot.getDate(),
+        slot.getStartTime(),
+        slot.getEndTime());
+
     return TimeSlotDTO.builder()
         .startTime(slot.getStartTime())
         .endTime(slot.getEndTime())
@@ -346,7 +355,7 @@ public class TimeSlotService {
         .courtId(slot.getCourt().getCourtId())
         .courtName(slot.getCourt().getCourtName())
         .venueName(slot.getCourt().getVenue().getName())
-        .pricePerHour(slot.getCourt().getPricePerHour())
+        .pricePerHour(dynamicPrice) // Use dynamic price instead of base price
         .available(slot.getStatus() == Slot.SlotStatus.AVAILABLE)
         .bookingId(slot.getBooking() != null ? slot.getBooking().getBookingId() : null)
         .status(slot.getStatus().name())
