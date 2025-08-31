@@ -108,6 +108,19 @@ public class CourtController {
       @PathVariable Long id,
       @Valid @RequestBody CourtRequestDTO courtRequestDTO) {
 
+    // Add debug logging to see user authentication details
+    org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder
+        .getContext().getAuthentication();
+
+    if (auth != null) {
+      System.out.println("=== DEBUG: Court Update ===");
+      System.out.println("User: " + auth.getName());
+      System.out.println("Authorities: " + auth.getPrincipal());
+      System.out.println("Court ID: " + id);
+      System.out.println("Court Data: " + courtRequestDTO);
+      System.out.println("===============================");
+    }
+
     CourtResponseDTO updatedCourt = courtService.updateCourt(id, courtRequestDTO);
     return ResponseEntity.ok(updatedCourt);
   }

@@ -4,8 +4,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 
 @Configuration
-@EnableMethodSecurity(securedEnabled = false, prePostEnabled = false)
+@EnableMethodSecurity(securedEnabled = true, prePostEnabled = true)
 public class MethodSecurityConfig {
-  // This configuration explicitly disables method security
-  // to prevent @PreAuthorize annotations from interfering with public endpoints
+  // This configuration enables method security
+  // to allow @PreAuthorize annotations to work properly
 }

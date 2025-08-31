@@ -174,6 +174,54 @@ public class CourtService {
     if (courtRequestDTO.getPricePerHour() > 0)
       court.setPricePerHour(BigDecimal.valueOf(courtRequestDTO.getPricePerHour()));
 
+    // Update additional fields if provided
+    if (courtRequestDTO.getDescription() != null)
+      court.setDescription(courtRequestDTO.getDescription());
+    if (courtRequestDTO.getIsIndoor() != null)
+      court.setIsIndoor(courtRequestDTO.getIsIndoor());
+    if (courtRequestDTO.getIsLighted() != null)
+      court.setIsLighted(courtRequestDTO.getIsLighted());
+    if (courtRequestDTO.getIsAirConditioned() != null)
+      court.setIsAirConditioned(courtRequestDTO.getIsAirConditioned());
+    if (courtRequestDTO.getMinBookingDuration() != null)
+      court.setMinBookingDuration(courtRequestDTO.getMinBookingDuration());
+    if (courtRequestDTO.getMaxBookingDuration() != null)
+      court.setMaxBookingDuration(courtRequestDTO.getMaxBookingDuration());
+    if (courtRequestDTO.getOpeningTime() != null)
+      court.setOpeningTime(courtRequestDTO.getOpeningTime());
+    if (courtRequestDTO.getClosingTime() != null)
+      court.setClosingTime(courtRequestDTO.getClosingTime());
+    if (courtRequestDTO.getSlotDurationMinutes() != null)
+      court.setSlotDurationMinutes(courtRequestDTO.getSlotDurationMinutes());
+    if (courtRequestDTO.getIsActiveOnWeekends() != null)
+      court.setIsActiveOnWeekends(courtRequestDTO.getIsActiveOnWeekends());
+    if (courtRequestDTO.getIsActiveOnHolidays() != null)
+      court.setIsActiveOnHolidays(courtRequestDTO.getIsActiveOnHolidays());
+    if (courtRequestDTO.getHasBreakTime() != null)
+      court.setHasBreakTime(courtRequestDTO.getHasBreakTime());
+    if (courtRequestDTO.getBreakStartTime() != null)
+      court.setBreakStartTime(courtRequestDTO.getBreakStartTime());
+    if (courtRequestDTO.getBreakEndTime() != null)
+      court.setBreakEndTime(courtRequestDTO.getBreakEndTime());
+    if (courtRequestDTO.getDynamicPricingEnabled() != null)
+      court.setDynamicPricingEnabled(courtRequestDTO.getDynamicPricingEnabled());
+    if (courtRequestDTO.getPeakHourStart() != null)
+      court.setPeakHourStart(courtRequestDTO.getPeakHourStart());
+    if (courtRequestDTO.getPeakHourEnd() != null)
+      court.setPeakHourEnd(courtRequestDTO.getPeakHourEnd());
+    if (courtRequestDTO.getPeakHourMultiplier() != null)
+      court.setPeakHourMultiplier(courtRequestDTO.getPeakHourMultiplier());
+    if (courtRequestDTO.getOffPeakMultiplier() != null)
+      court.setOffPeakMultiplier(courtRequestDTO.getOffPeakMultiplier());
+    if (courtRequestDTO.getWeekendMultiplier() != null)
+      court.setWeekendMultiplier(courtRequestDTO.getWeekendMultiplier());
+    if (courtRequestDTO.getMaintenanceMode() != null)
+      court.setMaintenanceMode(courtRequestDTO.getMaintenanceMode());
+    if (courtRequestDTO.getMaintenanceStartTime() != null)
+      court.setMaintenanceStartTime(courtRequestDTO.getMaintenanceStartTime());
+    if (courtRequestDTO.getMaintenanceEndTime() != null)
+      court.setMaintenanceEndTime(courtRequestDTO.getMaintenanceEndTime());
+
     Court updatedCourt = courtRepository.save(court);
     return CourtMapper.toCourtResponseDTO(updatedCourt);
   }
