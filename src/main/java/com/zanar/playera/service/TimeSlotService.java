@@ -37,12 +37,12 @@ public class TimeSlotService {
     // Generate all possible slots for the day
     List<TimeSlotDTO> allSlots = generateAllSlotsForDate(court, date);
 
-    // Get booked slots for this date
-    List<Slot> bookedSlots = slotRepository.findByCourt_CourtIdAndDateAndStatus(
-        courtId, date, Slot.SlotStatus.BOOKED);
+    // Get all blocked/reserved slots for this date (not just booked)
+    List<Slot> blockedSlots = slotRepository.findByCourt_CourtIdAndDateAndStatusIn(
+        courtId, date, Arrays.asList(Slot.SlotStatus.BOOKED, Slot.SlotStatus.RESERVED, Slot.SlotStatus.MAINTENANCE));
 
-    // Mark booked slots as unavailable
-    markBookedSlotsAsUnavailable(allSlots, bookedSlots);
+    // Mark blocked slots as unavailable
+    markBlockedSlotsAsUnavailable(allSlots, blockedSlots);
 
     // Filter only available slots
     return allSlots.stream()
@@ -84,6 +84,7 @@ public class TimeSlotService {
             .venueName(court.getVenue().getName())
             .pricePerHour(court.getPricePerHour())
             .available(true)
+            .status("AVAILABLE")
             .build();
 
         slots.add(slot);
@@ -132,15 +133,24 @@ public class TimeSlotService {
   }
 
   /**
-   * Mark booked slots as unavailable
+   * Mark blocked slots as unavailable
    */
-  private void markBookedSlotsAsUnavailable(List<TimeSlotDTO> allSlots, List<Slot> bookedSlots) {
-    for (Slot bookedSlot : bookedSlots) {
+  private void markBlockedSlotsAsUnavailable(List<TimeSlotDTO> allSlots, List<Slot> blockedSlots) {
+    for (Slot blockedSlot : blockedSlots) {
       for (TimeSlotDTO slot : allSlots) {
-        if (slot.getStartTime().equals(bookedSlot.getStartTime()) &&
-            slot.getEndTime().equals(bookedSlot.getEndTime())) {
+        if (slot.getStartTime().equals(blockedSlot.getStartTime()) &&
+            slot.getEndTime().equals(blockedSlot.getEndTime())) {
           slot.setAvailable(false);
-          slot.setBookingId(bookedSlot.getBooking() != null ? bookedSlot.getBooking().getBookingId() : null);
+          slot.setBookingId(blockedSlot.getBooking() != null ? blockedSlot.getBooking().getBookingId() : null);
+
+          // Set appropriate status based on slot type
+          if (blockedSlot.getStatus() == Slot.SlotStatus.MAINTENANCE) {
+            slot.setStatus("MAINTENANCE");
+          } else if (blockedSlot.getStatus() == Slot.SlotStatus.RESERVED) {
+            slot.setStatus("BLOCKED");
+          } else if (blockedSlot.getStatus() == Slot.SlotStatus.BOOKED) {
+            slot.setStatus("BOOKED");
+          }
           break;
         }
       }
@@ -177,31 +187,90 @@ public class TimeSlotService {
   /**
    * Block a time slot (for maintenance, reservations, etc.)
    */
-  public void blockTimeSlot(Long courtId, LocalDate date, LocalTime startTime, LocalTime endTime, String reason) {
+  public void blockTimeSlot(Long courtId, LocalDate date, LocalTime startTime, LocalTime endTime, String reason,
+      boolean isMaintenance) {
+    // Check if slot is already blocked
+    Slot existingSlot = slotRepository.findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatusIn(
+        courtId, date, startTime, endTime,
+        Arrays.asList(Slot.SlotStatus.RESERVED, Slot.SlotStatus.MAINTENANCE));
+
+    if (existingSlot != null) {
+      log.warn("Slot already blocked for court {} on {} from {} to {}", courtId, date, startTime, endTime);
+      return;
+    }
+
     Slot blockedSlot = new Slot();
     blockedSlot.setCourt(courtRepository.findById(courtId).orElse(null));
     blockedSlot.setDate(date);
     blockedSlot.setStartTime(startTime);
     blockedSlot.setEndTime(endTime);
-    blockedSlot.setStatus(Slot.SlotStatus.RESERVED);
+
+    // Set status based on whether it's maintenance or general blocking
+    if (isMaintenance) {
+      blockedSlot.setStatus(Slot.SlotStatus.MAINTENANCE);
+    } else {
+      blockedSlot.setStatus(Slot.SlotStatus.RESERVED);
+    }
 
     slotRepository.save(blockedSlot);
-    log.info("Blocked time slot for court {} on {} from {} to {}: {}",
-        courtId, date, startTime, endTime, reason);
+    log.info("Blocked time slot for court {} on {} from {} to {}: {} (Status: {})",
+        courtId, date, startTime, endTime, reason, blockedSlot.getStatus());
+  }
+
+  /**
+   * Block recurring time slots
+   */
+  public void blockRecurringTimeSlots(Long courtId, LocalDate startDate, LocalDate endDate,
+      LocalTime startTime, LocalTime endTime, String reason,
+      boolean isMaintenance, List<Integer> recurringDays) {
+    LocalDate currentDate = startDate;
+
+    while (!currentDate.isAfter(endDate)) {
+      DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
+      int dayValue = dayOfWeek.getValue() - 1; // Convert to 0-based index (Monday = 0)
+
+      if (recurringDays.contains(dayValue)) {
+        blockTimeSlot(courtId, currentDate, startTime, endTime, reason, isMaintenance);
+      }
+
+      currentDate = currentDate.plusDays(1);
+    }
   }
 
   /**
    * Unblock a time slot
    */
   public void unblockTimeSlot(Long courtId, LocalDate date, LocalTime startTime, LocalTime endTime) {
-    Slot blockedSlot = slotRepository.findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatus(
-        courtId, date, startTime, endTime, Slot.SlotStatus.RESERVED);
+    // Find slots with any blocked status
+    List<Slot> blockedSlots = slotRepository.findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatusIn(
+        courtId, date, startTime, endTime,
+        Arrays.asList(Slot.SlotStatus.RESERVED, Slot.SlotStatus.MAINTENANCE));
 
-    if (blockedSlot != null) {
+    for (Slot blockedSlot : blockedSlots) {
       slotRepository.delete(blockedSlot);
-      log.info("Unblocked time slot for court {} on {} from {} to {}",
-          courtId, date, startTime, endTime);
+      log.info("Unblocked time slot for court {} on {} from {} to {} (Status: {})",
+          courtId, date, startTime, endTime, blockedSlot.getStatus());
     }
+  }
+
+  /**
+   * Get all time slots for a court on a specific date (including blocked ones)
+   */
+  public List<TimeSlotDTO> getAllTimeSlotsForDate(Long courtId, LocalDate date) {
+    Court court = courtRepository.findById(courtId)
+        .orElseThrow(() -> new RuntimeException("Court not found"));
+
+    // Generate all possible slots for the day
+    List<TimeSlotDTO> allSlots = generateAllSlotsForDate(court, date);
+
+    // Get all blocked/reserved slots for this date
+    List<Slot> blockedSlots = slotRepository.findByCourt_CourtIdAndDateAndStatusIn(
+        courtId, date, Arrays.asList(Slot.SlotStatus.BOOKED, Slot.SlotStatus.RESERVED, Slot.SlotStatus.MAINTENANCE));
+
+    // Mark blocked slots as unavailable
+    markBlockedSlotsAsUnavailable(allSlots, blockedSlots);
+
+    return allSlots;
   }
 
   /**
@@ -378,6 +447,11 @@ public class TimeSlotService {
 
       public TimeSlotDTOBuilder available(boolean available) {
         timeSlotDTO.available = available;
+        return this;
+      }
+
+      public TimeSlotDTOBuilder status(String status) {
+        timeSlotDTO.status = status;
         return this;
       }
 

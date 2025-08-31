@@ -16,6 +16,9 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
         // Find available slots by court and date
         List<Slot> findByCourt_CourtIdAndDateAndStatus(Long courtId, LocalDate date, Slot.SlotStatus status);
 
+        // Find slots by court, date, and multiple statuses
+        List<Slot> findByCourt_CourtIdAndDateAndStatusIn(Long courtId, LocalDate date, List<Slot.SlotStatus> statuses);
+
         // Find available slots by court, date, and time range
         @Query("SELECT s FROM Slot s WHERE s.court.id = :courtId AND s.date = :date " +
                         "AND s.status = :status AND s.startTime >= :startTime AND s.endTime <= :endTime")
@@ -59,6 +62,17 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
         // Find specific slot by court, date, time and status (used by TimeSlotService)
         Slot findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatus(
                         Long courtId, LocalDate date, LocalTime startTime, LocalTime endTime, Slot.SlotStatus status);
+
+        // Find specific slot by court, date, time and multiple statuses
+        @Query("SELECT s FROM Slot s WHERE s.court.courtId = :courtId AND s.date = :date " +
+                        "AND s.startTime = :startTime AND s.endTime = :endTime " +
+                        "AND s.status IN :statuses")
+        Slot findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatusIn(
+                        @Param("courtId") Long courtId,
+                        @Param("date") LocalDate date,
+                        @Param("startTime") LocalTime startTime,
+                        @Param("endTime") LocalTime endTime,
+                        @Param("statuses") List<Slot.SlotStatus> statuses);
 
         // Find slots by booking
         List<Slot> findByBooking_BookingId(Long bookingId);
