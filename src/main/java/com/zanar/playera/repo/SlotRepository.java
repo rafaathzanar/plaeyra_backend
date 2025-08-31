@@ -67,7 +67,7 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
         @Query("SELECT s FROM Slot s WHERE s.court.courtId = :courtId AND s.date = :date " +
                         "AND s.startTime = :startTime AND s.endTime = :endTime " +
                         "AND s.status IN :statuses")
-        Slot findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatusIn(
+        List<Slot> findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatusIn(
                         @Param("courtId") Long courtId,
                         @Param("date") LocalDate date,
                         @Param("startTime") LocalTime startTime,

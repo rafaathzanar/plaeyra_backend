@@ -190,11 +190,11 @@ public class TimeSlotService {
   public void blockTimeSlot(Long courtId, LocalDate date, LocalTime startTime, LocalTime endTime, String reason,
       boolean isMaintenance) {
     // Check if slot is already blocked
-    Slot existingSlot = slotRepository.findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatusIn(
+    List<Slot> existingSlots = slotRepository.findByCourt_CourtIdAndDateAndStartTimeAndEndTimeAndStatusIn(
         courtId, date, startTime, endTime,
         Arrays.asList(Slot.SlotStatus.RESERVED, Slot.SlotStatus.MAINTENANCE));
 
-    if (existingSlot != null) {
+    if (!existingSlots.isEmpty()) {
       log.warn("Slot already blocked for court {} on {} from {} to {}", courtId, date, startTime, endTime);
       return;
     }

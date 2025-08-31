@@ -5,10 +5,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +27,7 @@ public class TimeSlotController {
    * Get available time slots for a court on a specific date
    */
   @GetMapping("/court/{courtId}/date/{date}")
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
   public ResponseEntity<List<TimeSlotService.TimeSlotDTO>> getAvailableSlots(
       @PathVariable Long courtId,
       @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -43,6 +46,7 @@ public class TimeSlotController {
    * This is used by the venue owner dashboard to show all slot statuses
    */
   @GetMapping("/court/{courtId}/date/{date}/all")
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
   public ResponseEntity<List<TimeSlotService.TimeSlotDTO>> getAllTimeSlots(
       @PathVariable Long courtId,
       @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -60,6 +64,7 @@ public class TimeSlotController {
    * Get available time slots for a court for a date range (for calendar view)
    */
   @GetMapping("/court/{courtId}/range")
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
   public ResponseEntity<Map<LocalDate, List<TimeSlotService.TimeSlotDTO>>> getSlotsForDateRange(
       @PathVariable Long courtId,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
@@ -79,6 +84,7 @@ public class TimeSlotController {
    * Check if a specific time slot is available
    */
   @GetMapping("/court/{courtId}/availability")
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
   public ResponseEntity<Boolean> checkSlotAvailability(
       @PathVariable Long courtId,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
@@ -102,7 +108,8 @@ public class TimeSlotController {
    * Block a time slot (for maintenance, reservations, etc.)
    */
   @PostMapping("/court/{courtId}/block")
-  public ResponseEntity<String> blockTimeSlot(
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  public ResponseEntity<Map<String, String>> blockTimeSlot(
       @PathVariable Long courtId,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) String startTime,
@@ -115,11 +122,21 @@ public class TimeSlotController {
       java.time.LocalTime end = java.time.LocalTime.parse(endTime);
 
       timeSlotService.blockTimeSlot(courtId, date, start, end, reason, isMaintenance);
-      return ResponseEntity.ok("Time slot blocked successfully");
+
+      Map<String, String> response = new HashMap<>();
+      response.put("message", "Time slot blocked successfully");
+      response.put("status", "SUCCESS");
+
+      return ResponseEntity.ok(response);
     } catch (Exception e) {
       log.error("Error blocking time slot for court {} on date {} from {} to {}: {}",
           courtId, date, startTime, endTime, reason, e);
-      return ResponseEntity.badRequest().body("Failed to block time slot: " + e.getMessage());
+
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("message", "Failed to block time slot: " + e.getMessage());
+      errorResponse.put("status", "ERROR");
+
+      return ResponseEntity.badRequest().body(errorResponse);
     }
   }
 
@@ -127,7 +144,8 @@ public class TimeSlotController {
    * Block recurring time slots
    */
   @PostMapping("/court/{courtId}/block-recurring")
-  public ResponseEntity<String> blockRecurringTimeSlots(
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  public ResponseEntity<Map<String, String>> blockRecurringTimeSlots(
       @PathVariable Long courtId,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
@@ -143,11 +161,21 @@ public class TimeSlotController {
 
       timeSlotService.blockRecurringTimeSlots(courtId, startDate, endDate, start, end, reason, isMaintenance,
           recurringDays);
-      return ResponseEntity.ok("Recurring time slots blocked successfully");
+
+      Map<String, String> response = new HashMap<>();
+      response.put("message", "Recurring time slots blocked successfully");
+      response.put("status", "SUCCESS");
+
+      return ResponseEntity.ok(response);
     } catch (Exception e) {
       log.error("Error blocking recurring time slots for court {} from {} to {}: {}",
           courtId, startDate, endDate, reason, e);
-      return ResponseEntity.badRequest().body("Failed to block recurring time slots: " + e.getMessage());
+
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("message", "Failed to block recurring time slots: " + e.getMessage());
+      errorResponse.put("status", "ERROR");
+
+      return ResponseEntity.badRequest().body(errorResponse);
     }
   }
 
@@ -155,7 +183,8 @@ public class TimeSlotController {
    * Unblock a time slot
    */
   @DeleteMapping("/court/{courtId}/unblock")
-  public ResponseEntity<String> unblockTimeSlot(
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  public ResponseEntity<Map<String, String>> unblockTimeSlot(
       @PathVariable Long courtId,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) String startTime,
@@ -166,11 +195,21 @@ public class TimeSlotController {
       java.time.LocalTime end = java.time.LocalTime.parse(endTime);
 
       timeSlotService.unblockTimeSlot(courtId, date, start, end);
-      return ResponseEntity.ok("Time slot unblocked successfully");
+
+      Map<String, String> response = new HashMap<>();
+      response.put("message", "Time slot unblocked successfully");
+      response.put("status", "SUCCESS");
+
+      return ResponseEntity.ok(response);
     } catch (Exception e) {
       log.error("Error unblocking time slot for court {} on date {} from {} to {}",
           courtId, date, startTime, endTime, e);
-      return ResponseEntity.badRequest().body("Failed to unblock time slot: " + e.getMessage());
+
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("message", "Failed to unblock time slot: " + e.getMessage());
+      errorResponse.put("status", "ERROR");
+
+      return ResponseEntity.badRequest().body(errorResponse);
     }
   }
 
@@ -178,6 +217,7 @@ public class TimeSlotController {
    * Get peak hours for a court (for dynamic pricing)
    */
   @GetMapping("/court/{courtId}/peak-hours")
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
   public ResponseEntity<List<LocalTime>> getPeakHours(@PathVariable Long courtId) {
     try {
       List<LocalTime> peakHours = timeSlotService.getPeakHours(courtId);
