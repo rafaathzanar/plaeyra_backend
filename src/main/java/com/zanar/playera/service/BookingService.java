@@ -180,6 +180,17 @@ public class BookingService {
                 .collect(Collectors.toList());
     }
 
+    public List<BookingResponseDTO> listBookingsByVenue(Long venueId) {
+        return bookingRepository.findAll().stream()
+                .filter(b -> b.getBookingCourts() != null &&
+                        b.getBookingCourts().stream()
+                                .anyMatch(bc -> bc.getCourt() != null &&
+                                        bc.getCourt().getVenue() != null &&
+                                        bc.getCourt().getVenue().getVenueId().equals(venueId)))
+                .map(BookingMapper::toBookingResponseDTO)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public void cancelBooking(Long id) {
         Booking booking = bookingRepository.findById(id)
