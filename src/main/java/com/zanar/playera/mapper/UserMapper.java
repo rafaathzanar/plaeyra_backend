@@ -58,6 +58,7 @@ public class UserMapper {
     dto.setName(user.getName());
     dto.setEmail(user.getEmail());
     dto.setPhone(user.getPhone());
+    dto.setProfileImage(user.getProfileImage());
     if (user instanceof Customer customer) {
       dto.setUserType("CUSTOMER");
       dto.setLoyaltyPoints(customer.getLoyaltyPoints());

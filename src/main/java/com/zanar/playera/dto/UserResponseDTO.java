@@ -10,4 +10,5 @@ public class UserResponseDTO {
   private String phone;
   private String userType;
   private Integer loyaltyPoints;
+  private String profileImage;
 }

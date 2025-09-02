@@ -76,14 +76,52 @@ public class VenueMapper {
           .map(court -> {
             CourtResponseDTO courtDto = new CourtResponseDTO();
             courtDto.setCourtId(court.getCourtId());
-            courtDto.setCourtId(court.getCourtId());
             courtDto.setName(court.getCourtName()); // Backward compatibility
+            courtDto.setType(court.getType() != null ? court.getType().name() : null); // New type field
             courtDto.setSportType(court.getType() != null ? court.getType().name() : null); // Backward compatibility
             courtDto.setSurfaceType(null); // Legacy field
             courtDto.setStatus(court.getStatus() != null ? court.getStatus().name() : null);
             courtDto.setPricePerHour(court.getPricePerHour() != null ? court.getPricePerHour().doubleValue() : null);
             courtDto.setDescription(court.getDescription());
             courtDto.setImageUrl(null); // Legacy field
+
+            // Add additional court fields
+            courtDto.setCapacity(court.getCapacity());
+            courtDto.setIsIndoor(court.getIsIndoor());
+            courtDto.setIsLighted(court.getIsLighted());
+            courtDto.setIsAirConditioned(court.getIsAirConditioned());
+            courtDto.setMinBookingDuration(court.getMinBookingDuration());
+            courtDto.setMaxBookingDuration(court.getMaxBookingDuration());
+
+            // Add time-related fields
+            courtDto.setOpeningTime(court.getOpeningTime());
+            courtDto.setClosingTime(court.getClosingTime());
+            courtDto.setSlotDurationMinutes(court.getSlotDurationMinutes());
+            courtDto.setIsActiveOnWeekends(court.getIsActiveOnWeekends());
+            courtDto.setIsActiveOnHolidays(court.getIsActiveOnHolidays());
+
+            // Add break time fields
+            courtDto.setHasBreakTime(court.getHasBreakTime());
+            courtDto.setBreakStartTime(court.getBreakStartTime());
+            courtDto.setBreakEndTime(court.getBreakEndTime());
+
+            // Add dynamic pricing fields
+            courtDto.setDynamicPricingEnabled(court.getDynamicPricingEnabled());
+            courtDto.setPeakHourStart(court.getPeakHourStart());
+            courtDto.setPeakHourEnd(court.getPeakHourEnd());
+            courtDto.setPeakHourMultiplier(court.getPeakHourMultiplier());
+            courtDto.setOffPeakMultiplier(court.getOffPeakMultiplier());
+            courtDto.setWeekendMultiplier(court.getWeekendMultiplier());
+
+            // Add maintenance fields
+            courtDto.setMaintenanceMode(court.getMaintenanceMode());
+            courtDto.setMaintenanceStartTime(court.getMaintenanceStartTime());
+            courtDto.setMaintenanceEndTime(court.getMaintenanceEndTime());
+
+            // Add venue information
+            courtDto.setVenueId(venue.getVenueId());
+            courtDto.setVenueName(venue.getName());
+
             return courtDto;
           })
           .collect(Collectors.toList()));
