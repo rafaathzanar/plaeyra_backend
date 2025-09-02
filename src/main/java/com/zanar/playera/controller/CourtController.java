@@ -216,7 +216,7 @@ public class CourtController {
   }
 
   @GetMapping("/{id}/dynamic-pricing")
-  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
   @Operation(summary = "Get dynamic pricing settings", description = "Gets current dynamic pricing configuration for the court")
   public ResponseEntity<Map<String, Object>> getDynamicPricingSettings(@PathVariable Long id) {
     Map<String, Object> settings = dynamicPricingService.getDynamicPricingSettings(id);

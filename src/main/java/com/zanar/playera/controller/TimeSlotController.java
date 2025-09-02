@@ -29,7 +29,7 @@ public class TimeSlotController {
    * Get available time slots for a court on a specific date
    */
   @GetMapping("/court/{courtId}/date/{date}")
-  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
   public ResponseEntity<List<TimeSlotService.TimeSlotDTO>> getAvailableSlots(
       @PathVariable Long courtId,
       @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
@@ -86,7 +86,7 @@ public class TimeSlotController {
    * Check if a specific time slot is available
    */
   @GetMapping("/court/{courtId}/availability")
-  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
   public ResponseEntity<Boolean> checkSlotAvailability(
       @PathVariable Long courtId,
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,

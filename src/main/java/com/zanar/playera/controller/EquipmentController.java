@@ -27,7 +27,7 @@ public class EquipmentController {
     private EquipmentService equipmentService;
 
     @GetMapping
-    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
     @Operation(summary = "Get all equipment", description = "Retrieve all equipment in the system")
     public ResponseEntity<List<EquipmentResponseDTO>> listEquipment() {
         List<EquipmentResponseDTO> equipment = equipmentService.listEquipment();
@@ -35,7 +35,7 @@ public class EquipmentController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
     @Operation(summary = "Get equipment by ID", description = "Retrieve a specific equipment by its ID")
     public ResponseEntity<EquipmentResponseDTO> getEquipmentById(@PathVariable Long id) {
         try {
@@ -47,7 +47,7 @@ public class EquipmentController {
     }
 
     @GetMapping("/court/{courtId}")
-    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
     @Operation(summary = "Get equipment by court", description = "Retrieve all equipment for a specific court")
     public ResponseEntity<List<EquipmentResponseDTO>> listEquipmentByCourt(@PathVariable Long courtId) {
         List<EquipmentResponseDTO> equipment = equipmentService.listEquipmentByCourt(courtId);
@@ -55,7 +55,7 @@ public class EquipmentController {
     }
 
     @GetMapping("/court/{courtId}/available")
-    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
     @Operation(summary = "Get available equipment by court", description = "Retrieve only available equipment for a specific court")
     public ResponseEntity<List<EquipmentResponseDTO>> listAvailableEquipmentByCourt(@PathVariable Long courtId) {
         List<EquipmentResponseDTO> equipment = equipmentService.listAvailableEquipmentByCourt(courtId);
@@ -63,7 +63,7 @@ public class EquipmentController {
     }
 
     @GetMapping("/venue/{venueId}")
-    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
     @Operation(summary = "Get equipment by venue", description = "Retrieve all equipment for a specific venue")
     public ResponseEntity<List<EquipmentResponseDTO>> listEquipmentByVenue(@PathVariable Long venueId) {
         List<EquipmentResponseDTO> equipment = equipmentService.getEquipmentByVenue(venueId);
@@ -110,7 +110,7 @@ public class EquipmentController {
     // Equipment rental specific endpoints
 
     @GetMapping("/{id}/availability")
-    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
     @Operation(summary = "Check equipment availability", description = "Check if equipment is available for rental")
     public ResponseEntity<Boolean> checkEquipmentAvailability(
             @PathVariable Long id,
@@ -124,7 +124,7 @@ public class EquipmentController {
     }
 
     @GetMapping("/{id}/calculate-cost")
-    @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
     @Operation(summary = "Calculate rental cost", description = "Calculate the cost for renting equipment")
     public ResponseEntity<Double> calculateRentalCost(
             @PathVariable Long id,

@@ -8,6 +8,7 @@ import org.springframework.security.config.annotation.authentication.builders.Au
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -54,6 +55,12 @@ public class SecurityConfig {
             "/swagger-resources/**",
             "/webjars/**")
         .permitAll()
+        // Allow CUSTOMER users to view venues, courts, and equipment (GET requests
+        // only)
+        .requestMatchers(HttpMethod.GET, "/api/venues/**", "/api/courts/**", "/api/equipment/**")
+        .hasAnyRole("CUSTOMER", "VENUE_OWNER", "ADMIN")
+        // Restrict venue/court/equipment management (POST, PUT, DELETE) to VENUE_OWNER
+        // and ADMIN only
         .requestMatchers("/api/venues/**", "/api/courts/**", "/api/equipment/**")
         .hasAnyRole("VENUE_OWNER", "ADMIN")
         .anyRequest().authenticated()
