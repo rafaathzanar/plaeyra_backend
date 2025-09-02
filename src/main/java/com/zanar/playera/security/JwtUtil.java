@@ -10,6 +10,12 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 @Component
 public class JwtUtil {
@@ -37,12 +43,13 @@ public class JwtUtil {
         .getBody();
   }
 
-  private Boolean isTokenExpired(String token) {
+  public Boolean isTokenExpired(String token) {
     return extractExpiration(token).before(new Date());
   }
 
   public String generateToken(UserDetails userDetails) {
     Map<String, Object> claims = new HashMap<>();
+    claims.put("authorities", userDetails.getAuthorities());
     return createToken(claims, userDetails.getUsername());
   }
 
@@ -59,5 +66,17 @@ public class JwtUtil {
   public Boolean validateToken(String token, UserDetails userDetails) {
     final String username = extractUsername(token);
     return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+  }
+
+  @SuppressWarnings("unchecked")
+  public Collection<? extends GrantedAuthority> extractAuthorities(String token) {
+    final Claims claims = extractAllClaims(token);
+    List<Map<String, String>> authorities = (List<Map<String, String>>) claims.get("authorities");
+    if (authorities == null) {
+      return Collections.emptyList();
+    }
+    return authorities.stream()
+        .map(auth -> new SimpleGrantedAuthority(auth.get("authority")))
+        .collect(Collectors.toList());
   }
 }

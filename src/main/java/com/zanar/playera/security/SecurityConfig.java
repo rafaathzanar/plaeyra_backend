@@ -59,6 +59,9 @@ public class SecurityConfig {
         // only)
         .requestMatchers(HttpMethod.GET, "/api/venues/**", "/api/courts/**", "/api/equipment/**")
         .hasAnyRole("CUSTOMER", "VENUE_OWNER", "ADMIN")
+        // Allow CUSTOMER users to create and manage their own bookings
+        .requestMatchers("/api/bookings/**")
+        .hasAnyRole("CUSTOMER", "VENUE_OWNER", "ADMIN")
         // Restrict venue/court/equipment management (POST, PUT, DELETE) to VENUE_OWNER
         // and ADMIN only
         .requestMatchers("/api/venues/**", "/api/courts/**", "/api/equipment/**")

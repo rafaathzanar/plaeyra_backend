@@ -15,9 +15,11 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Transactional
+@Slf4j
 public class BookingService {
 
     @Autowired
@@ -69,7 +71,7 @@ public class BookingService {
         booking.setCustomer(customer);
         booking.setBookingDate(dto.getBookingDateTime());
         booking.setDuration(dto.getDurationInHours());
-        booking.setBookingStatus("PENDING");
+        booking.setBookingStatus("CONFIRMED"); // Set to CONFIRMED for successful bookings
         booking.setTotalCost(0.0);
         booking.setSpecialRequests(dto.getSpecialRequests());
 
@@ -158,7 +160,47 @@ public class BookingService {
         bookingCourtRepository.saveAll(bookingCourts);
         bookingEquipmentRepository.saveAll(bookingEquipments);
 
+        // Update slot status to BOOKED for the booked time slots
+        updateSlotsToBooked(savedBooking, dto);
+
         return BookingMapper.toBookingResponseDTO(savedBooking);
+    }
+
+    /**
+     * Update slot status to BOOKED for the booked time slots
+     */
+    private void updateSlotsToBooked(Booking booking, BookingRequestDTO dto) {
+        try {
+            // Get the court from the first court booking
+            if (dto.getCourtBookings() != null && !dto.getCourtBookings().isEmpty()) {
+                Long courtId = dto.getCourtBookings().get(0).getCourtId();
+                LocalDate bookingDate = dto.getBookingDate();
+                LocalTime startTime = dto.getStartTime();
+                LocalTime endTime = dto.getEndTime();
+
+                // Find and update slots for the booked time range
+                List<Slot> allSlots = slotRepository.findByCourt_CourtIdAndDate(courtId, bookingDate);
+
+                // Filter slots that fall within the booked time range
+                List<Slot> slotsToUpdate = allSlots.stream()
+                        .filter(slot -> slot.getStartTime().isAfter(startTime.minusMinutes(1)) &&
+                                slot.getEndTime().isBefore(endTime.plusMinutes(1)))
+                        .collect(Collectors.toList());
+
+                for (Slot slot : slotsToUpdate) {
+                    slot.setStatus(Slot.SlotStatus.BOOKED);
+                    slot.setBooking(booking);
+                    slotRepository.save(slot);
+                }
+
+                log.info("Updated {} slots to BOOKED status for booking {}", slotsToUpdate.size(),
+                        booking.getBookingId());
+            }
+        } catch (Exception e) {
+            log.error("Error updating slots to BOOKED status for booking {}: {}", booking.getBookingId(),
+                    e.getMessage());
+            // Don't throw exception here as booking is already created
+        }
     }
 
     public BookingResponseDTO getBookingById(Long id) {

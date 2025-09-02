@@ -15,7 +15,6 @@ public class BookingRequestDTO {
     private Long customerId;
 
     @NotNull(message = "Booking date is required")
-    @Future(message = "Booking date must be in the future")
     private LocalDate bookingDate;
 
     @NotNull(message = "Start time is required")

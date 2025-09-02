@@ -17,6 +17,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import lombok.extern.slf4j.Slf4j;
+import java.util.Map;
 
 import jakarta.validation.Valid;
 import java.util.List;
@@ -26,6 +28,7 @@ import java.util.List;
 @Tag(name = "Booking Management", description = "APIs for managing venue bookings, availability checking, and booking lifecycle management")
 @Validated
 @CrossOrigin(origins = "*")
+@Slf4j
 public class BookingController {
 
   @Autowired
@@ -111,7 +114,7 @@ public class BookingController {
       @ApiResponse(responseCode = "409", description = "Booking conflict - requested time slot is not available")
   })
   @SecurityRequirement(name = "Bearer Authentication")
-  public ResponseEntity<BookingResponseDTO> createBooking(
+  public ResponseEntity<?> createBooking(
       @Parameter(description = "Booking request details including court selections, equipment, and time preferences", required = true, content = @Content(examples = @ExampleObject(name = "Standard Booking", value = """
           {
             "customerId": 1,
@@ -138,7 +141,9 @@ public class BookingController {
       BookingResponseDTO booking = bookingService.createBooking(dto);
       return ResponseEntity.status(HttpStatus.CREATED).body(booking);
     } catch (RuntimeException e) {
-      return ResponseEntity.badRequest().build();
+      log.error("Error creating booking: {}", e.getMessage(), e);
+      return ResponseEntity.badRequest()
+          .body(Map.of("error", e.getMessage(), "timestamp", java.time.LocalDateTime.now()));
     }
   }
 

@@ -7,8 +7,9 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.security.core.GrantedAuthority;
+import java.util.Collection;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.slf4j.Logger;
@@ -66,21 +67,25 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
     if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
       try {
-        logger.debug("Loading user details for username: {}", username);
-        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-        logger.debug("User details loaded, authorities: {}", userDetails.getAuthorities());
+        logger.debug("Validating JWT token for username: {}", username);
 
-        if (jwtUtil.validateToken(jwt, userDetails)) {
+        // Extract authorities from token
+        Collection<? extends GrantedAuthority> authorities = jwtUtil.extractAuthorities(jwt);
+        logger.debug("Authorities extracted from token: {}", authorities);
+
+        // Simple token validation (check if not expired)
+        if (!jwtUtil.isTokenExpired(jwt)) {
           logger.debug("JWT token validated successfully for user: {}", username);
           UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-              userDetails, null, userDetails.getAuthorities());
+              username, null, authorities);
           authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
           SecurityContextHolder.getContext().setAuthentication(authToken);
-          logger.debug("Authentication set in SecurityContext for user: {}", username);
+          logger.debug("Authentication set in SecurityContext for user: {} with authorities: {}", username,
+              authorities);
         } else {
-          logger.warn("JWT token validation failed for user: {}", username);
+          logger.warn("JWT token has expired for user: {}", username);
           response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-          response.getWriter().write("{\"error\":\"Invalid JWT token\"}");
+          response.getWriter().write("{\"error\":\"JWT token expired\"}");
           return;
         }
       } catch (Exception e) {
