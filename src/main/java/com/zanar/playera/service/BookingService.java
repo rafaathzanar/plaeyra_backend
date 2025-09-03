@@ -14,6 +14,9 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
@@ -222,12 +225,45 @@ public class BookingService {
 
         // Save booking and related entities
         Booking savedBooking = bookingRepository.save(booking);
+        log.info("=== BOOKING SAVE DEBUG ===");
+        log.info("Saved booking ID: {}", savedBooking.getBookingId());
+        log.info("BookingTimeSlots to save: {}", bookingTimeSlots.size());
+
+        // Set the booking reference for all time slots after booking is saved
+        for (BookingTimeSlot bookingTimeSlot : bookingTimeSlots) {
+            bookingTimeSlot.setBooking(savedBooking);
+            log.info("BookingTimeSlot: {} - {} (duration: {})",
+                    bookingTimeSlot.getStartTime(),
+                    bookingTimeSlot.getEndTime(),
+                    bookingTimeSlot.getDuration());
+        }
+
         bookingCourtRepository.saveAll(bookingCourts);
         bookingEquipmentRepository.saveAll(bookingEquipments);
-        bookingTimeSlotRepository.saveAll(bookingTimeSlots);
+        List<BookingTimeSlot> savedTimeSlots = bookingTimeSlotRepository.saveAll(bookingTimeSlots);
+        log.info("Saved BookingTimeSlots count: {}", savedTimeSlots.size());
+        log.info("=== END BOOKING SAVE DEBUG ===");
 
         // Update slot status to BOOKED for the booked time slots
         updateSlotsToBooked(savedBooking, dto);
+
+        // Load the booking with all relationships for proper DTO mapping
+        Booking bookingWithDetails = bookingRepository.findById(savedBooking.getBookingId()).orElse(null);
+        if (bookingWithDetails != null) {
+            // Load time slot relationships
+            Booking bookingWithTimeSlots = bookingRepository.findByIdWithTimeSlots(savedBooking.getBookingId());
+            if (bookingWithTimeSlots != null && bookingWithTimeSlots.getBookingTimeSlots() != null) {
+                bookingWithDetails.setBookingTimeSlots(bookingWithTimeSlots.getBookingTimeSlots());
+            }
+
+            // Load equipment relationships
+            Booking bookingWithEquipment = bookingRepository.findByIdWithEquipment(savedBooking.getBookingId());
+            if (bookingWithEquipment != null && bookingWithEquipment.getBookingEquipments() != null) {
+                bookingWithDetails.setBookingEquipments(bookingWithEquipment.getBookingEquipments());
+            }
+
+            return BookingMapper.toBookingResponseDTO(bookingWithDetails);
+        }
 
         return BookingMapper.toBookingResponseDTO(savedBooking);
     }
@@ -293,7 +329,24 @@ public class BookingService {
     }
 
     public List<BookingResponseDTO> listBookings() {
-        return bookingRepository.findAll().stream()
+        List<Booking> bookings = bookingRepository.findAll();
+
+        // Load missing relationships to avoid MultipleBagFetchException
+        for (Booking booking : bookings) {
+            // Load equipment relationships
+            Booking bookingWithEquipment = bookingRepository.findByIdWithEquipment(booking.getBookingId());
+            if (bookingWithEquipment != null && bookingWithEquipment.getBookingEquipments() != null) {
+                booking.setBookingEquipments(bookingWithEquipment.getBookingEquipments());
+            }
+
+            // Load time slot relationships
+            Booking bookingWithTimeSlots = bookingRepository.findByIdWithTimeSlots(booking.getBookingId());
+            if (bookingWithTimeSlots != null && bookingWithTimeSlots.getBookingTimeSlots() != null) {
+                booking.setBookingTimeSlots(bookingWithTimeSlots.getBookingTimeSlots());
+            }
+        }
+
+        return bookings.stream()
                 .map(BookingMapper::toBookingResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -336,12 +389,100 @@ public class BookingService {
             Booking bookingWithTimeSlots = bookingRepository.findByIdWithTimeSlots(booking.getBookingId());
             if (bookingWithTimeSlots != null && bookingWithTimeSlots.getBookingTimeSlots() != null) {
                 booking.setBookingTimeSlots(bookingWithTimeSlots.getBookingTimeSlots());
+                log.info("=== VENUE BOOKING DEBUG ===");
+                log.info("Booking ID: {}", booking.getBookingId());
+                log.info("BookingTimeSlots loaded: {}", bookingWithTimeSlots.getBookingTimeSlots().size());
+                log.info("TimeSlotRanges will be set: {}", !bookingWithTimeSlots.getBookingTimeSlots().isEmpty());
+                log.info("=== END VENUE BOOKING DEBUG ===");
+            } else {
+                log.info("=== VENUE BOOKING DEBUG ===");
+                log.info("Booking ID: {}", booking.getBookingId());
+                log.info("No BookingTimeSlots found for this booking");
+                log.info("=== END VENUE BOOKING DEBUG ===");
             }
         }
 
         return bookings.stream()
                 .map(BookingMapper::toBookingResponseDTO)
                 .collect(Collectors.toList());
+    }
+
+    public Map<String, Object> debugVenueBookings(Long venueId) {
+        List<Booking> bookings = bookingRepository.findByVenueIdWithDetails(venueId);
+
+        Map<String, Object> debugInfo = new HashMap<>();
+        debugInfo.put("totalBookings", bookings.size());
+
+        List<Map<String, Object>> bookingDetails = new ArrayList<>();
+        for (Booking booking : bookings) {
+            Map<String, Object> bookingInfo = new HashMap<>();
+            bookingInfo.put("bookingId", booking.getBookingId());
+            bookingInfo.put("bookingDate", booking.getBookingDate());
+            bookingInfo.put("startTime", booking.getBookingDate().toLocalTime());
+            bookingInfo.put("duration", booking.getDuration());
+
+            // Check if BookingTimeSlots exist
+            Booking bookingWithTimeSlots = bookingRepository.findByIdWithTimeSlots(booking.getBookingId());
+            if (bookingWithTimeSlots != null && bookingWithTimeSlots.getBookingTimeSlots() != null) {
+                bookingInfo.put("hasTimeSlots", true);
+                bookingInfo.put("timeSlotCount", bookingWithTimeSlots.getBookingTimeSlots().size());
+                List<Map<String, Object>> timeSlots = new ArrayList<>();
+                for (var bts : bookingWithTimeSlots.getBookingTimeSlots()) {
+                    Map<String, Object> ts = new HashMap<>();
+                    ts.put("startTime", bts.getStartTime());
+                    ts.put("endTime", bts.getEndTime());
+                    ts.put("duration", bts.getDuration());
+                    timeSlots.add(ts);
+                }
+                bookingInfo.put("timeSlots", timeSlots);
+            } else {
+                bookingInfo.put("hasTimeSlots", false);
+                bookingInfo.put("timeSlotCount", 0);
+            }
+
+            bookingDetails.add(bookingInfo);
+        }
+
+        debugInfo.put("bookings", bookingDetails);
+        return debugInfo;
+    }
+
+    public Map<String, Object> debugBooking(Long bookingId) {
+        Map<String, Object> debugInfo = new HashMap<>();
+
+        // Get the booking
+        Booking booking = bookingRepository.findById(bookingId).orElse(null);
+        if (booking == null) {
+            debugInfo.put("error", "Booking not found");
+            return debugInfo;
+        }
+
+        debugInfo.put("bookingId", booking.getBookingId());
+        debugInfo.put("bookingDate", booking.getBookingDate());
+        debugInfo.put("duration", booking.getDuration());
+
+        // Check if BookingTimeSlots exist
+        Booking bookingWithTimeSlots = bookingRepository.findByIdWithTimeSlots(bookingId);
+        if (bookingWithTimeSlots != null && bookingWithTimeSlots.getBookingTimeSlots() != null) {
+            debugInfo.put("hasTimeSlots", true);
+            debugInfo.put("timeSlotCount", bookingWithTimeSlots.getBookingTimeSlots().size());
+            List<Map<String, Object>> timeSlots = new ArrayList<>();
+            for (var bts : bookingWithTimeSlots.getBookingTimeSlots()) {
+                Map<String, Object> ts = new HashMap<>();
+                ts.put("id", bts.getId());
+                ts.put("startTime", bts.getStartTime());
+                ts.put("endTime", bts.getEndTime());
+                ts.put("duration", bts.getDuration());
+                ts.put("cost", bts.getCost());
+                timeSlots.add(ts);
+            }
+            debugInfo.put("timeSlots", timeSlots);
+        } else {
+            debugInfo.put("hasTimeSlots", false);
+            debugInfo.put("timeSlotCount", 0);
+        }
+
+        return debugInfo;
     }
 
     @Transactional

@@ -182,4 +182,16 @@ public class BookingController {
       return ResponseEntity.ok(false);
     }
   }
+
+  @GetMapping("/debug/venue/{venueId}")
+  @Operation(summary = "Debug venue bookings", description = "Debug endpoint to check booking time slots for a venue")
+  public ResponseEntity<Map<String, Object>> debugVenueBookings(@PathVariable Long venueId) {
+    return ResponseEntity.ok(bookingService.debugVenueBookings(venueId));
+  }
+
+  @GetMapping("/debug/booking/{bookingId}")
+  @Operation(summary = "Debug specific booking", description = "Debug endpoint to check a specific booking's time slots")
+  public ResponseEntity<Map<String, Object>> debugBooking(@PathVariable Long bookingId) {
+    return ResponseEntity.ok(bookingService.debugBooking(bookingId));
+  }
 }

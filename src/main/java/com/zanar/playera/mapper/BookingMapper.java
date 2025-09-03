@@ -91,6 +91,10 @@ public class BookingMapper {
 
     // Map time slot ranges for discontinuous bookings
     if (booking.getBookingTimeSlots() != null && !booking.getBookingTimeSlots().isEmpty()) {
+      System.out.println("=== BOOKING MAPPER DEBUG ===");
+      System.out.println("Booking ID: " + booking.getBookingId());
+      System.out.println("BookingTimeSlots size: " + booking.getBookingTimeSlots().size());
+
       List<BookingResponseDTO.TimeSlotRangeDTO> timeSlotRanges = booking.getBookingTimeSlots().stream()
           .map(bts -> {
             BookingResponseDTO.TimeSlotRangeDTO rangeDTO = new BookingResponseDTO.TimeSlotRangeDTO();
@@ -98,10 +102,18 @@ public class BookingMapper {
             rangeDTO.setEndTime(bts.getEndTime());
             rangeDTO.setDuration(bts.getDuration());
             rangeDTO.setCost(bts.getCost());
+            System.out.println("Mapped time slot: " + bts.getStartTime() + " - " + bts.getEndTime());
             return rangeDTO;
           })
           .collect(Collectors.toList());
       dto.setTimeSlotRanges(timeSlotRanges);
+      System.out.println("TimeSlotRanges set in DTO: " + timeSlotRanges.size());
+      System.out.println("=== END BOOKING MAPPER DEBUG ===");
+    } else {
+      System.out.println("=== BOOKING MAPPER DEBUG ===");
+      System.out.println("Booking ID: " + booking.getBookingId());
+      System.out.println("No BookingTimeSlots found - timeSlotRanges will be null");
+      System.out.println("=== END BOOKING MAPPER DEBUG ===");
     }
 
     return dto;
