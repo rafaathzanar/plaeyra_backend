@@ -31,6 +31,9 @@ public class BookingRequestDTO {
     private List<CourtBookingDTO> courtBookings;
     private List<EquipmentBookingDTO> equipmentBookings;
 
+    // NEW: Support for multiple time slot ranges (discontinuous slots)
+    private List<TimeSlotRangeDTO> timeSlotRanges;
+
     @Data
     public static class CourtBookingDTO {
         @NotNull(message = "Court ID is required")
@@ -52,6 +55,23 @@ public class BookingRequestDTO {
         private int timeDuration;
     }
 
+    @Data
+    public static class TimeSlotRangeDTO {
+        @NotNull(message = "Start time is required")
+        private LocalTime startTime;
+
+        @NotNull(message = "End time is required")
+        private LocalTime endTime;
+
+        @Min(value = 0, message = "Duration must be positive")
+        private double duration; // in hours for this specific range
+
+        // Helper method to validate time range
+        public boolean isValidTimeRange() {
+            return startTime != null && endTime != null && startTime.isBefore(endTime);
+        }
+    }
+
     // Helper methods
     public LocalDateTime getBookingDateTime() {
         return LocalDateTime.of(bookingDate, startTime);
@@ -63,7 +83,9 @@ public class BookingRequestDTO {
 
     public int getDurationInHours() {
         if (startTime != null && endTime != null) {
-            return endTime.getHour() - startTime.getHour();
+            // Calculate duration in minutes first, then convert to hours
+            long minutes = java.time.Duration.between(startTime, endTime).toMinutes();
+            return (int) Math.round(minutes / 60.0);
         }
         return duration;
     }

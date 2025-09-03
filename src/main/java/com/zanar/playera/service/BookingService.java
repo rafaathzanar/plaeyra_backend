@@ -52,25 +52,52 @@ public class BookingService {
     @Autowired
     private PaymentRepository paymentRepository;
 
+    @Autowired
+    private BookingTimeSlotRepository bookingTimeSlotRepository;
+
     public BookingResponseDTO createBooking(BookingRequestDTO dto) {
         // Validate customer exists
         Customer customer = (Customer) userRepository.findById(dto.getCustomerId())
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
 
-        // Validate booking date and time
-        if (!dto.isValidTimeRange()) {
-            throw new RuntimeException("Invalid time range: start time must be before end time");
-        }
-
+        // Validate booking date
         if (dto.getBookingDate().isBefore(LocalDate.now())) {
             throw new RuntimeException("Booking date cannot be in the past");
+        }
+
+        // Validate time slot ranges if provided (for discontinuous slots)
+        if (dto.getTimeSlotRanges() != null && !dto.getTimeSlotRanges().isEmpty()) {
+            for (BookingRequestDTO.TimeSlotRangeDTO range : dto.getTimeSlotRanges()) {
+                if (!range.isValidTimeRange()) {
+                    throw new RuntimeException("Invalid time range: start time must be before end time for range " +
+                            range.getStartTime() + " - " + range.getEndTime());
+                }
+            }
+            // For discontinuous bookings, skip the overall startTime/endTime validation
+            // as they represent the span from first to last slot, not a continuous range
+        } else if (!dto.isValidTimeRange()) {
+            // Fallback to single time range validation for continuous bookings
+            throw new RuntimeException("Invalid time range: start time must be before end time");
         }
 
         // Create booking
         Booking booking = new Booking();
         booking.setCustomer(customer);
         booking.setBookingDate(dto.getBookingDateTime());
-        booking.setDuration(dto.getDurationInHours());
+
+        // Calculate duration correctly for discontinuous bookings
+        double totalDuration = 0;
+        if (dto.getTimeSlotRanges() != null && !dto.getTimeSlotRanges().isEmpty()) {
+            // Sum up all individual time ranges for discontinuous bookings
+            totalDuration = dto.getTimeSlotRanges().stream()
+                    .mapToDouble(BookingRequestDTO.TimeSlotRangeDTO::getDuration)
+                    .sum();
+        } else {
+            // Use the original duration calculation for continuous bookings
+            totalDuration = dto.getDurationInHours();
+        }
+        booking.setDuration((int) Math.round(totalDuration));
+
         booking.setBookingStatus("CONFIRMED"); // Set to CONFIRMED for successful bookings
         booking.setTotalCost(0.0);
         booking.setSpecialRequests(dto.getSpecialRequests());
@@ -155,10 +182,49 @@ public class BookingService {
         booking.setBookingEquipments(bookingEquipments);
         booking.setTotalCost(totalCourtCost.add(totalEquipmentCost).doubleValue());
 
+        // Process time slot ranges (for discontinuous slots)
+        List<BookingTimeSlot> bookingTimeSlots = new ArrayList<>();
+        if (dto.getTimeSlotRanges() != null && !dto.getTimeSlotRanges().isEmpty()) {
+            for (BookingRequestDTO.TimeSlotRangeDTO range : dto.getTimeSlotRanges()) {
+                // Get the court from the first court booking
+                if (!dto.getCourtBookings().isEmpty()) {
+                    Long courtId = dto.getCourtBookings().get(0).getCourtId();
+                    Court court = courtRepository.findById(courtId)
+                            .orElseThrow(() -> new RuntimeException("Court not found: " + courtId));
+
+                    // Check for conflicting time slots
+                    List<BookingTimeSlot> conflictingSlots = bookingTimeSlotRepository.findConflictingTimeSlots(
+                            courtId, dto.getBookingDate(), range.getStartTime(), range.getEndTime());
+
+                    if (!conflictingSlots.isEmpty()) {
+                        throw new RuntimeException("Court " + court.getCourtName() +
+                                " is not available for the time range " + range.getStartTime() + " - "
+                                + range.getEndTime());
+                    }
+
+                    // Calculate cost for this time range
+                    double rangeCost = court.getPricePerHour().doubleValue() * range.getDuration();
+
+                    // Create booking time slot
+                    BookingTimeSlot bookingTimeSlot = new BookingTimeSlot();
+                    bookingTimeSlot.setBooking(booking);
+                    bookingTimeSlot.setCourt(court);
+                    bookingTimeSlot.setStartTime(range.getStartTime());
+                    bookingTimeSlot.setEndTime(range.getEndTime());
+                    bookingTimeSlot.setDuration(range.getDuration());
+                    bookingTimeSlot.setCost(rangeCost);
+                    bookingTimeSlots.add(bookingTimeSlot);
+                }
+            }
+        }
+
+        booking.setBookingTimeSlots(bookingTimeSlots);
+
         // Save booking and related entities
         Booking savedBooking = bookingRepository.save(booking);
         bookingCourtRepository.saveAll(bookingCourts);
         bookingEquipmentRepository.saveAll(bookingEquipments);
+        bookingTimeSlotRepository.saveAll(bookingTimeSlots);
 
         // Update slot status to BOOKED for the booked time slots
         updateSlotsToBooked(savedBooking, dto);
@@ -175,32 +241,49 @@ public class BookingService {
             if (dto.getCourtBookings() != null && !dto.getCourtBookings().isEmpty()) {
                 Long courtId = dto.getCourtBookings().get(0).getCourtId();
                 LocalDate bookingDate = dto.getBookingDate();
-                LocalTime startTime = dto.getStartTime();
-                LocalTime endTime = dto.getEndTime();
 
-                // Find and update slots for the booked time range
-                List<Slot> allSlots = slotRepository.findByCourt_CourtIdAndDate(courtId, bookingDate);
-
-                // Filter slots that fall within the booked time range
-                List<Slot> slotsToUpdate = allSlots.stream()
-                        .filter(slot -> slot.getStartTime().isAfter(startTime.minusMinutes(1)) &&
-                                slot.getEndTime().isBefore(endTime.plusMinutes(1)))
-                        .collect(Collectors.toList());
-
-                for (Slot slot : slotsToUpdate) {
-                    slot.setStatus(Slot.SlotStatus.BOOKED);
-                    slot.setBooking(booking);
-                    slotRepository.save(slot);
+                // Handle discontinuous time slots if provided
+                if (dto.getTimeSlotRanges() != null && !dto.getTimeSlotRanges().isEmpty()) {
+                    for (BookingRequestDTO.TimeSlotRangeDTO range : dto.getTimeSlotRanges()) {
+                        updateSlotsForTimeRange(courtId, bookingDate, range.getStartTime(), range.getEndTime(),
+                                booking);
+                    }
+                } else {
+                    // Fallback to single time range
+                    LocalTime startTime = dto.getStartTime();
+                    LocalTime endTime = dto.getEndTime();
+                    updateSlotsForTimeRange(courtId, bookingDate, startTime, endTime, booking);
                 }
-
-                log.info("Updated {} slots to BOOKED status for booking {}", slotsToUpdate.size(),
-                        booking.getBookingId());
             }
         } catch (Exception e) {
             log.error("Error updating slots to BOOKED status for booking {}: {}", booking.getBookingId(),
                     e.getMessage());
             // Don't throw exception here as booking is already created
         }
+    }
+
+    /**
+     * Update slots for a specific time range
+     */
+    private void updateSlotsForTimeRange(Long courtId, LocalDate bookingDate, LocalTime startTime, LocalTime endTime,
+            Booking booking) {
+        // Find and update slots for the booked time range
+        List<Slot> allSlots = slotRepository.findByCourt_CourtIdAndDate(courtId, bookingDate);
+
+        // Filter slots that overlap with the booked time range
+        List<Slot> slotsToUpdate = allSlots.stream()
+                .filter(slot -> slot.getStartTime().isBefore(endTime) &&
+                        slot.getEndTime().isAfter(startTime))
+                .collect(Collectors.toList());
+
+        // Update slots to BOOKED status
+        for (Slot slot : slotsToUpdate) {
+            slot.setStatus(Slot.SlotStatus.BOOKED);
+            slot.setBooking(booking);
+            slotRepository.save(slot);
+        }
+        log.info("Updated {} slots to BOOKED status for time range {} - {} in booking {}",
+                slotsToUpdate.size(), startTime, endTime, booking.getBookingId());
     }
 
     public BookingResponseDTO getBookingById(Long id) {
@@ -216,19 +299,47 @@ public class BookingService {
     }
 
     public List<BookingResponseDTO> listBookingsByCustomer(Long customerId) {
-        return bookingRepository.findAll().stream()
-                .filter(b -> b.getCustomer() != null && b.getCustomer().getUserId().equals(customerId))
+        List<Booking> bookings = bookingRepository.findByCustomerIdWithDetails(customerId);
+
+        // Load missing relationships to avoid MultipleBagFetchException
+        for (Booking booking : bookings) {
+            // Load equipment relationships
+            Booking bookingWithEquipment = bookingRepository.findByIdWithEquipment(booking.getBookingId());
+            if (bookingWithEquipment != null && bookingWithEquipment.getBookingEquipments() != null) {
+                booking.setBookingEquipments(bookingWithEquipment.getBookingEquipments());
+            }
+
+            // Load time slot relationships
+            Booking bookingWithTimeSlots = bookingRepository.findByIdWithTimeSlots(booking.getBookingId());
+            if (bookingWithTimeSlots != null && bookingWithTimeSlots.getBookingTimeSlots() != null) {
+                booking.setBookingTimeSlots(bookingWithTimeSlots.getBookingTimeSlots());
+            }
+        }
+
+        return bookings.stream()
                 .map(BookingMapper::toBookingResponseDTO)
                 .collect(Collectors.toList());
     }
 
     public List<BookingResponseDTO> listBookingsByVenue(Long venueId) {
-        return bookingRepository.findAll().stream()
-                .filter(b -> b.getBookingCourts() != null &&
-                        b.getBookingCourts().stream()
-                                .anyMatch(bc -> bc.getCourt() != null &&
-                                        bc.getCourt().getVenue() != null &&
-                                        bc.getCourt().getVenue().getVenueId().equals(venueId)))
+        List<Booking> bookings = bookingRepository.findByVenueIdWithDetails(venueId);
+
+        // Load missing relationships to avoid MultipleBagFetchException
+        for (Booking booking : bookings) {
+            // Load equipment relationships
+            Booking bookingWithEquipment = bookingRepository.findByIdWithEquipment(booking.getBookingId());
+            if (bookingWithEquipment != null && bookingWithEquipment.getBookingEquipments() != null) {
+                booking.setBookingEquipments(bookingWithEquipment.getBookingEquipments());
+            }
+
+            // Load time slot relationships
+            Booking bookingWithTimeSlots = bookingRepository.findByIdWithTimeSlots(booking.getBookingId());
+            if (bookingWithTimeSlots != null && bookingWithTimeSlots.getBookingTimeSlots() != null) {
+                booking.setBookingTimeSlots(bookingWithTimeSlots.getBookingTimeSlots());
+            }
+        }
+
+        return bookings.stream()
                 .map(BookingMapper::toBookingResponseDTO)
                 .collect(Collectors.toList());
     }

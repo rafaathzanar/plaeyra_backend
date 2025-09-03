@@ -16,6 +16,7 @@ import java.util.Map;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(exclude = { "venueOwner", "courts", "reviews", "equipment" })
 @Table(name = "venues")
 public class Venue {
     @Id

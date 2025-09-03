@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import lombok.extern.slf4j.Slf4j;
@@ -114,6 +115,7 @@ public class BookingController {
       @ApiResponse(responseCode = "409", description = "Booking conflict - requested time slot is not available")
   })
   @SecurityRequirement(name = "Bearer Authentication")
+  @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
   public ResponseEntity<?> createBooking(
       @Parameter(description = "Booking request details including court selections, equipment, and time preferences", required = true, content = @Content(examples = @ExampleObject(name = "Standard Booking", value = """
           {

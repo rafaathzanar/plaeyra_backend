@@ -68,6 +68,15 @@ public class TimeSlotService {
     LocalTime closingTime = court.getClosingTime();
     int slotDuration = court.getSlotDurationMinutes();
 
+    // Debug logging
+    log.info("=== COURT TIME CONFIGURATION DEBUG ===");
+    log.info("Court ID: {}", court.getCourtId());
+    log.info("Court Name: {}", court.getCourtName());
+    log.info("Opening Time: {}", court.getOpeningTime());
+    log.info("Closing Time: {}", court.getClosingTime());
+    log.info("Slot Duration Minutes: {}", court.getSlotDurationMinutes());
+    log.info("=== END COURT TIME CONFIGURATION DEBUG ===");
+
     while (currentTime.isBefore(closingTime)) {
       LocalTime endTime = currentTime.plusMinutes(slotDuration);
 
@@ -91,6 +100,11 @@ public class TimeSlotService {
             .build();
 
         slots.add(slot);
+
+        // Debug first few slots
+        if (slots.size() <= 3) {
+          log.info("Generated slot {}: {} - {}", slots.size(), currentTime, endTime);
+        }
       }
 
       currentTime = endTime;
