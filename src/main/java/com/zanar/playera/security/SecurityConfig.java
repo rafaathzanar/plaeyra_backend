@@ -65,6 +65,9 @@ public class SecurityConfig {
         // Analytics endpoints - only for VENUE_OWNER and ADMIN
         .requestMatchers("/api/analytics/**")
         .hasAnyRole("VENUE_OWNER", "ADMIN")
+        // Notification endpoints - for all authenticated users
+        .requestMatchers("/api/notifications/**")
+        .hasAnyRole("CUSTOMER", "VENUE_OWNER", "ADMIN")
         // Restrict venue/court/equipment management (POST, PUT, DELETE) to VENUE_OWNER
         // and ADMIN only
         .requestMatchers("/api/venues/**", "/api/courts/**", "/api/equipment/**")

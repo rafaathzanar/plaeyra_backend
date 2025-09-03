@@ -58,6 +58,9 @@ public class BookingService {
     @Autowired
     private BookingTimeSlotRepository bookingTimeSlotRepository;
 
+    @Autowired
+    private NotificationService notificationService;
+
     public BookingResponseDTO createBooking(BookingRequestDTO dto) {
         // Validate customer exists
         Customer customer = (Customer) userRepository.findById(dto.getCustomerId())
@@ -262,8 +265,14 @@ public class BookingService {
                 bookingWithDetails.setBookingEquipments(bookingWithEquipment.getBookingEquipments());
             }
 
+            // Create notification for booking confirmation
+            notificationService.createBookingConfirmationNotification(bookingWithDetails);
+
             return BookingMapper.toBookingResponseDTO(bookingWithDetails);
         }
+
+        // Create notification for booking confirmation
+        notificationService.createBookingConfirmationNotification(savedBooking);
 
         return BookingMapper.toBookingResponseDTO(savedBooking);
     }
