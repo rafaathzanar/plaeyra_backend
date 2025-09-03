@@ -2,9 +2,12 @@ package com.zanar.playera.controller;
 
 import com.zanar.playera.dto.PaymentRequestDTO;
 import com.zanar.playera.dto.PaymentResponseDTO;
+import com.zanar.playera.dto.PaymentIntentRequestDTO;
+import com.zanar.playera.dto.PaymentIntentResponseDTO;
 import com.zanar.playera.service.PaymentService;
 import com.zanar.playera.service.StripeService;
 import com.stripe.exception.StripeException;
+import com.stripe.model.PaymentIntent;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -49,12 +52,116 @@ public class PaymentController {
     }
   }
 
-  @PostMapping("/mock-intent")
-  public ResponseEntity<Map<String, String>> createMockPaymentIntent(@RequestBody Map<String, Object> req) {
-    int amount = (int) req.getOrDefault("amount", 0);
-    String currency = (String) req.getOrDefault("currency", "usd");
-    String description = (String) req.getOrDefault("description", "");
-    String clientSecret = stripeService.createMockPaymentIntent(amount, currency, description);
-    return ResponseEntity.ok(Map.of("clientSecret", clientSecret));
+  /**
+   * Create a Stripe PaymentIntent for mobile app
+   */
+  @PostMapping("/create-intent")
+  public ResponseEntity<?> createPaymentIntent(@RequestBody PaymentIntentRequestDTO request) {
+    try {
+      PaymentIntent paymentIntent = stripeService.createPaymentIntent(
+          request.getAmount(),
+          request.getCurrency(),
+          request.getDescription(),
+          request.getCustomerEmail());
+
+      PaymentIntentResponseDTO response = new PaymentIntentResponseDTO(
+          paymentIntent.getId(),
+          paymentIntent.getClientSecret(),
+          paymentIntent.getStatus(),
+          request.getAmount(),
+          request.getCurrency(),
+          request.getDescription(),
+          request.getCustomerEmail(),
+          stripeService.getPublishableKey());
+
+      return ResponseEntity.ok(response);
+    } catch (StripeException e) {
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("error", "Payment intent creation failed: " + e.getMessage());
+      errorResponse.put("stripeError", e.getStripeError() != null ? e.getStripeError().getCode() : "unknown");
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    } catch (Exception e) {
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("error", "Payment intent creation failed: " + e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+    }
+  }
+
+  /**
+   * Confirm a PaymentIntent
+   */
+  @PostMapping("/confirm-intent/{paymentIntentId}")
+  public ResponseEntity<?> confirmPaymentIntent(@PathVariable String paymentIntentId) {
+    try {
+      PaymentIntent paymentIntent = stripeService.confirmPaymentIntent(paymentIntentId);
+
+      Map<String, Object> response = new HashMap<>();
+      response.put("paymentIntentId", paymentIntent.getId());
+      response.put("status", paymentIntent.getStatus());
+      response.put("amount", paymentIntent.getAmount());
+      response.put("currency", paymentIntent.getCurrency());
+
+      return ResponseEntity.ok(response);
+    } catch (StripeException e) {
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("error", "Payment confirmation failed: " + e.getMessage());
+      errorResponse.put("stripeError", e.getStripeError() != null ? e.getStripeError().getCode() : "unknown");
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    } catch (Exception e) {
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("error", "Payment confirmation failed: " + e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+    }
+  }
+
+  /**
+   * Get PaymentIntent status
+   */
+  @GetMapping("/intent/{paymentIntentId}")
+  public ResponseEntity<?> getPaymentIntentStatus(@PathVariable String paymentIntentId) {
+    try {
+      PaymentIntent paymentIntent = stripeService.retrievePaymentIntent(paymentIntentId);
+
+      Map<String, Object> response = new HashMap<>();
+      response.put("paymentIntentId", paymentIntent.getId());
+      response.put("status", paymentIntent.getStatus());
+      response.put("amount", paymentIntent.getAmount());
+      response.put("currency", paymentIntent.getCurrency());
+      response.put("clientSecret", paymentIntent.getClientSecret());
+
+      return ResponseEntity.ok(response);
+    } catch (StripeException e) {
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("error", "Failed to retrieve payment intent: " + e.getMessage());
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    } catch (Exception e) {
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("error", "Failed to retrieve payment intent: " + e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+    }
+  }
+
+  /**
+   * Cancel a PaymentIntent
+   */
+  @PostMapping("/cancel-intent/{paymentIntentId}")
+  public ResponseEntity<?> cancelPaymentIntent(@PathVariable String paymentIntentId) {
+    try {
+      PaymentIntent paymentIntent = stripeService.cancelPaymentIntent(paymentIntentId);
+
+      Map<String, Object> response = new HashMap<>();
+      response.put("paymentIntentId", paymentIntent.getId());
+      response.put("status", paymentIntent.getStatus());
+
+      return ResponseEntity.ok(response);
+    } catch (StripeException e) {
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("error", "Payment cancellation failed: " + e.getMessage());
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    } catch (Exception e) {
+      Map<String, String> errorResponse = new HashMap<>();
+      errorResponse.put("error", "Payment cancellation failed: " + e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+    }
   }
 }

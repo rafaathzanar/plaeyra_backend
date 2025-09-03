@@ -2,7 +2,11 @@ package com.zanar.playera.controller;
 
 import com.zanar.playera.dto.BookingRequestDTO;
 import com.zanar.playera.dto.BookingResponseDTO;
+import com.zanar.playera.dto.BookingWithPaymentDTO;
 import com.zanar.playera.service.BookingService;
+import com.zanar.playera.service.StripeService;
+import com.stripe.exception.StripeException;
+import com.stripe.model.PaymentIntent;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -34,6 +38,9 @@ public class BookingController {
 
   @Autowired
   private BookingService bookingService;
+
+  @Autowired
+  private StripeService stripeService;
 
   @GetMapping
   @Operation(summary = "Get all bookings", description = "Retrieve all bookings in the system. This is an admin function that requires appropriate permissions.")
@@ -146,6 +153,103 @@ public class BookingController {
       log.error("Error creating booking: {}", e.getMessage(), e);
       return ResponseEntity.badRequest()
           .body(Map.of("error", e.getMessage(), "timestamp", java.time.LocalDateTime.now()));
+    }
+  }
+
+  @PostMapping("/with-payment")
+  @Operation(summary = "Create booking with payment verification", description = "Create a new venue booking only after verifying that the payment was successful. This ensures no bookings are created for failed payments.")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "201", description = "Booking created successfully after payment verification", content = @Content(mediaType = "application/json", schema = @Schema(implementation = BookingResponseDTO.class))),
+      @ApiResponse(responseCode = "400", description = "Invalid booking data, payment verification failed, or validation error"),
+      @ApiResponse(responseCode = "409", description = "Booking conflict - requested time slot is not available")
+  })
+  @SecurityRequirement(name = "Bearer Authentication")
+  @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
+  public ResponseEntity<?> createBookingWithPayment(@Valid @RequestBody BookingWithPaymentDTO dto) {
+    try {
+      log.info("Creating booking with payment verification for payment intent: {}", dto.getPaymentIntentId());
+
+      // Verify payment status with Stripe
+      PaymentIntent paymentIntent = stripeService.retrievePaymentIntent(dto.getPaymentIntentId());
+
+      if (!"succeeded".equals(paymentIntent.getStatus())) {
+        log.error("Payment verification failed. Payment intent {} has status: {}", dto.getPaymentIntentId(),
+            paymentIntent.getStatus());
+        return ResponseEntity.badRequest()
+            .body(Map.of("error", "Payment verification failed. Payment status: " + paymentIntent.getStatus(),
+                "paymentIntentId", dto.getPaymentIntentId(),
+                "timestamp", java.time.LocalDateTime.now()));
+      }
+
+      log.info("Payment verified as successful for payment intent: {}", dto.getPaymentIntentId());
+
+      // Convert to regular booking request
+      BookingRequestDTO bookingRequest = new BookingRequestDTO();
+      bookingRequest.setCustomerId(dto.getCustomerId());
+      bookingRequest.setBookingDate(dto.getBookingDate());
+      bookingRequest.setStartTime(dto.getStartTime());
+      bookingRequest.setEndTime(dto.getEndTime());
+      bookingRequest.setDuration(dto.getDuration());
+      bookingRequest.setSpecialRequests(dto.getSpecialRequests());
+
+      // Convert court bookings
+      if (dto.getCourtBookings() != null) {
+        bookingRequest.setCourtBookings(dto.getCourtBookings().stream()
+            .map(cb -> {
+              BookingRequestDTO.CourtBookingDTO courtBooking = new BookingRequestDTO.CourtBookingDTO();
+              courtBooking.setCourtId(cb.getCourtId());
+              courtBooking.setTimeDuration(cb.getTimeDuration());
+              return courtBooking;
+            })
+            .collect(java.util.stream.Collectors.toList()));
+      }
+
+      // Convert equipment bookings
+      if (dto.getEquipmentBookings() != null) {
+        bookingRequest.setEquipmentBookings(dto.getEquipmentBookings().stream()
+            .map(eb -> {
+              BookingRequestDTO.EquipmentBookingDTO equipmentBooking = new BookingRequestDTO.EquipmentBookingDTO();
+              equipmentBooking.setEquipmentId(eb.getEquipmentId());
+              equipmentBooking.setQuantity(eb.getQuantity());
+              equipmentBooking.setTimeDuration(eb.getTimeDuration());
+              return equipmentBooking;
+            })
+            .collect(java.util.stream.Collectors.toList()));
+      }
+
+      // Convert time slot ranges
+      if (dto.getTimeSlotRanges() != null) {
+        bookingRequest.setTimeSlotRanges(dto.getTimeSlotRanges().stream()
+            .map(tsr -> {
+              BookingRequestDTO.TimeSlotRangeDTO timeSlotRange = new BookingRequestDTO.TimeSlotRangeDTO();
+              timeSlotRange.setStartTime(tsr.getStartTime());
+              timeSlotRange.setEndTime(tsr.getEndTime());
+              timeSlotRange.setDuration(tsr.getDuration());
+              return timeSlotRange;
+            })
+            .collect(java.util.stream.Collectors.toList()));
+      }
+
+      // Create the booking
+      BookingResponseDTO createdBooking = bookingService.createBooking(bookingRequest);
+
+      log.info("Booking created successfully with ID: {} for payment intent: {}",
+          createdBooking.getBookingId(), dto.getPaymentIntentId());
+
+      return ResponseEntity.status(HttpStatus.CREATED).body(createdBooking);
+
+    } catch (StripeException e) {
+      log.error("Stripe error during payment verification: {}", e.getMessage(), e);
+      return ResponseEntity.badRequest()
+          .body(Map.of("error", "Payment verification failed: " + e.getMessage(),
+              "paymentIntentId", dto.getPaymentIntentId(),
+              "timestamp", java.time.LocalDateTime.now()));
+    } catch (RuntimeException e) {
+      log.error("Error creating booking with payment verification: {}", e.getMessage(), e);
+      return ResponseEntity.badRequest()
+          .body(Map.of("error", e.getMessage(),
+              "paymentIntentId", dto.getPaymentIntentId(),
+              "timestamp", java.time.LocalDateTime.now()));
     }
   }
 

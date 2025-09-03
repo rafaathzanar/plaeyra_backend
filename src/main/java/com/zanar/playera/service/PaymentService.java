@@ -64,11 +64,13 @@ public class PaymentService {
     Customer customer = customerRepository.findById(booking.getCustomer().getUserId())
         .orElseThrow(() -> new RuntimeException("Customer not found"));
 
-    // Create mock payment intent (using existing mock service)
-    String mockPaymentIntentId = stripeService.createMockPaymentIntent(
-        (int) dto.getAmount(),
+    // Create real Stripe payment intent
+    com.stripe.model.PaymentIntent stripePaymentIntent = stripeService.createPaymentIntent(
+        (long) Math.round(dto.getAmount()),
         defaultCurrency,
-        "Payment for booking " + dto.getBookingId());
+        "Payment for booking " + dto.getBookingId(),
+        customer.getEmail());
+    String paymentIntentId = stripePaymentIntent.getId();
 
     // Create payment entity
     Payment payment = new Payment();
@@ -82,7 +84,7 @@ public class PaymentService {
     payment.setDescription(
         dto.getDescription() != null ? dto.getDescription() : "Payment for booking " + dto.getBookingId());
     payment.setTransactionId(dto.getTransactionId());
-    payment.setStripePaymentIntentId(mockPaymentIntentId);
+    payment.setStripePaymentIntentId(paymentIntentId);
     payment.setCustomerEmail(customer.getEmail());
     payment.setCustomerName(customer.getName());
     payment.setCustomerPhone(customer.getPhone());
