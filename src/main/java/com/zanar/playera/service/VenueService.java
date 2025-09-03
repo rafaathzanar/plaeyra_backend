@@ -204,6 +204,48 @@ public class VenueService {
       venue.setDescription(venueRequestDTO.getDescription());
     if (venueRequestDTO.getContactNo() != null)
       venue.setContactNo(venueRequestDTO.getContactNo());
+    if (venueRequestDTO.getEmail() != null)
+      venue.setEmail(venueRequestDTO.getEmail());
+    if (venueRequestDTO.getWebsite() != null)
+      venue.setWebsite(venueRequestDTO.getWebsite());
+    if (venueRequestDTO.getLatitude() != null)
+      venue.setLatitude(Double.parseDouble(venueRequestDTO.getLatitude()));
+    if (venueRequestDTO.getLongitude() != null)
+      venue.setLongitude(Double.parseDouble(venueRequestDTO.getLongitude()));
+    if (venueRequestDTO.getVenueType() != null)
+      venue.setVenueType(Venue.VenueType.valueOf(venueRequestDTO.getVenueType()));
+    if (venueRequestDTO.getMaxCapacity() != null)
+      venue.setMaxCapacity(venueRequestDTO.getMaxCapacity());
+    if (venueRequestDTO.getStatus() != null)
+      venue.setStatus(Venue.VenueStatus.valueOf(venueRequestDTO.getStatus()));
+    if (venueRequestDTO.getOpeningHours() != null)
+      venue.setOpeningHours(venueRequestDTO.getOpeningHours());
+    if (venueRequestDTO.getBasePrice() != null)
+      venue.setBasePrice(venueRequestDTO.getBasePrice().doubleValue());
+
+    // Update amenities
+    if (venueRequestDTO.getParkingAvailable() != null)
+      venue.setParkingAvailable(venueRequestDTO.getParkingAvailable());
+    if (venueRequestDTO.getFoodAvailable() != null)
+      venue.setFoodAvailable(venueRequestDTO.getFoodAvailable());
+    if (venueRequestDTO.getChangingRoomsAvailable() != null)
+      venue.setChangingRoomsAvailable(venueRequestDTO.getChangingRoomsAvailable());
+    if (venueRequestDTO.getShowerAvailable() != null)
+      venue.setShowerAvailable(venueRequestDTO.getShowerAvailable());
+    if (venueRequestDTO.getWifiAvailable() != null)
+      venue.setWifiAvailable(venueRequestDTO.getWifiAvailable());
+
+    // Update policies
+    if (venueRequestDTO.getCancellationPolicy() != null)
+      venue.setCancellationPolicy(venueRequestDTO.getCancellationPolicy());
+    if (venueRequestDTO.getRefundPolicy() != null)
+      venue.setRefundPolicy(venueRequestDTO.getRefundPolicy());
+
+    // Update lists
+    if (venueRequestDTO.getImages() != null)
+      venue.setImages(venueRequestDTO.getImages());
+    if (venueRequestDTO.getAmenities() != null)
+      venue.setAmenities(venueRequestDTO.getAmenities());
 
     Venue updatedVenue = venueRepository.save(venue);
 

@@ -62,6 +62,9 @@ public class SecurityConfig {
         // Allow CUSTOMER users to create and manage their own bookings
         .requestMatchers("/api/bookings/**")
         .hasAnyRole("CUSTOMER", "VENUE_OWNER", "ADMIN")
+        // Analytics endpoints - only for VENUE_OWNER and ADMIN
+        .requestMatchers("/api/analytics/**")
+        .hasAnyRole("VENUE_OWNER", "ADMIN")
         // Restrict venue/court/equipment management (POST, PUT, DELETE) to VENUE_OWNER
         // and ADMIN only
         .requestMatchers("/api/venues/**", "/api/courts/**", "/api/equipment/**")

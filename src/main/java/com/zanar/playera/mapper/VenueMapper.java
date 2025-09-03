@@ -18,9 +18,49 @@ public class VenueMapper {
     venue.setLocation(dto.getLocation());
     venue.setDescription(dto.getDescription());
     venue.setContactNo(dto.getContactNo());
+    venue.setEmail(dto.getEmail());
+    venue.setWebsite(dto.getWebsite());
+
+    // Handle latitude and longitude
+    if (dto.getLatitude() != null && !dto.getLatitude().trim().isEmpty()) {
+      venue.setLatitude(Double.parseDouble(dto.getLatitude()));
+    }
+    if (dto.getLongitude() != null && !dto.getLongitude().trim().isEmpty()) {
+      venue.setLongitude(Double.parseDouble(dto.getLongitude()));
+    }
+
+    // Handle venue type
+    if (dto.getVenueType() != null) {
+      venue.setVenueType(Venue.VenueType.valueOf(dto.getVenueType()));
+    }
+
+    venue.setMaxCapacity(dto.getMaxCapacity());
+
+    // Handle status
+    if (dto.getStatus() != null) {
+      venue.setStatus(Venue.VenueStatus.valueOf(dto.getStatus()));
+    }
+
+    // Business details
+    venue.setOpeningHours(dto.getOpeningHours());
+    if (dto.getBasePrice() != null) {
+      venue.setBasePrice(dto.getBasePrice().doubleValue());
+    }
+    venue.setCancellationPolicy(dto.getCancellationPolicy());
+    venue.setRefundPolicy(dto.getRefundPolicy());
+
+    // Amenities
+    venue.setParkingAvailable(dto.getParkingAvailable());
+    venue.setFoodAvailable(dto.getFoodAvailable());
+    venue.setChangingRoomsAvailable(dto.getChangingRoomsAvailable());
+    venue.setShowerAvailable(dto.getShowerAvailable());
+    venue.setWifiAvailable(dto.getWifiAvailable());
+
+    // Lists
     venue.setImages(dto.getImages());
     venue.setAmenities(dto.getAmenities());
     venue.setVenueOwner(owner);
+
     return venue;
   }
 
