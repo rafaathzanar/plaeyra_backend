@@ -33,6 +33,10 @@ public class BookingMapper {
 
     if (booking.getPayment() != null) {
       dto.setPaymentId(booking.getPayment().getPaymentId());
+      dto.setPaymentStatus(booking.getPayment().getStatus().toString());
+      dto.setPaymentMethod(booking.getPayment().getPaymentMethod().toString());
+      dto.setPaymentAmount(booking.getPayment().getAmount());
+      dto.setStripePaymentIntentId(booking.getPayment().getStripePaymentIntentId());
     }
     if (booking.getBookingCourts() != null && !booking.getBookingCourts().isEmpty()) {
       List<BookingResponseDTO.CourtBookingDTO> courtDTOs = booking.getBookingCourts().stream().map(bc -> {

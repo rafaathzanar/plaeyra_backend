@@ -24,6 +24,10 @@ public class BookingResponseDTO {
   private String customerEmail;
   private String customerPhone;
   private Long paymentId;
+  private String paymentStatus;
+  private String paymentMethod;
+  private Double paymentAmount;
+  private String stripePaymentIntentId;
   private String specialRequests;
   private String notes; // For backward compatibility
 

@@ -36,6 +36,10 @@ public class StripeService {
     // Convert amount to cents (Stripe expects amounts in smallest currency unit)
     long amountInCents = amount * 100;
 
+    System.out.println("StripeService: Creating payment intent");
+    System.out.println("Original amount: " + amount + " " + currency);
+    System.out.println("Amount in cents: " + amountInCents);
+
     PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
         .setAmount(amountInCents)
         .setCurrency(currency.toLowerCase())
