@@ -36,6 +36,7 @@ public class TimeSlotController {
 
     try {
       List<TimeSlotService.TimeSlotDTO> slots = timeSlotService.generateAvailableSlots(courtId, date);
+      log.info("Generated {} available slots for court {} on date {}", slots.size(), courtId, date);
       return ResponseEntity.ok(slots);
     } catch (Exception e) {
       log.error("Error getting available slots for court {} on date {}", courtId, date, e);
@@ -230,6 +231,47 @@ public class TimeSlotController {
       return ResponseEntity.ok(peakHours);
     } catch (Exception e) {
       log.error("Error getting peak hours for court {}", courtId, e);
+      return ResponseEntity.badRequest().build();
+    }
+  }
+
+  /**
+   * Check court configuration for time slot generation
+   */
+  @GetMapping("/court/{courtId}/configuration")
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  public ResponseEntity<Map<String, Object>> checkCourtConfiguration(@PathVariable Long courtId) {
+    try {
+      Map<String, Object> config = timeSlotService.checkCourtConfiguration(courtId);
+      return ResponseEntity.ok(config);
+    } catch (Exception e) {
+      log.error("Error checking court configuration for court {}", courtId, e);
+      return ResponseEntity.badRequest().build();
+    }
+  }
+
+  /**
+   * Check if slots exist for a court on a specific date
+   */
+  @GetMapping("/court/{courtId}/date/{date}/exists")
+  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
+  public ResponseEntity<Map<String, Object>> checkSlotsExist(
+      @PathVariable Long courtId,
+      @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+
+    try {
+      boolean slotsExist = timeSlotService.checkSlotsExist(courtId, date);
+      long slotCount = timeSlotService.getSlotCount(courtId, date);
+
+      Map<String, Object> response = new HashMap<>();
+      response.put("courtId", courtId);
+      response.put("date", date);
+      response.put("slotsExist", slotsExist);
+      response.put("slotCount", slotCount);
+
+      return ResponseEntity.ok(response);
+    } catch (Exception e) {
+      log.error("Error checking if slots exist for court {} on date {}", courtId, date, e);
       return ResponseEntity.badRequest().build();
     }
   }

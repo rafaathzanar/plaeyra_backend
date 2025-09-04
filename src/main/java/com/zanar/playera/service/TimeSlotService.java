@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.*;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.math.BigDecimal;
@@ -32,8 +31,15 @@ public class TimeSlotService {
     Court court = courtRepository.findById(courtId)
         .orElseThrow(() -> new RuntimeException("Court not found"));
 
+    // Check if court has proper time configuration first
+    if (!isCourtProperlyConfigured(court)) {
+      log.warn("Court {} is not properly configured for time slot generation", courtId);
+      return new ArrayList<>();
+    }
+
     // Check if court is active on this date
     if (!isCourtAvailableOnDate(court, date)) {
+      log.info("Court {} is not available on date {}", courtId, date);
       return new ArrayList<>();
     }
 
@@ -48,9 +54,14 @@ public class TimeSlotService {
     markBlockedSlotsAsUnavailable(allSlots, blockedSlots);
 
     // Filter only available slots
-    return allSlots.stream()
+    List<TimeSlotDTO> availableSlots = allSlots.stream()
         .filter(TimeSlotDTO::isAvailable)
         .collect(Collectors.toList());
+
+    log.info("Generated {} available slots out of {} total slots for court {} on date {}",
+        availableSlots.size(), allSlots.size(), courtId, date);
+
+    return availableSlots;
   }
 
   /**
@@ -59,8 +70,11 @@ public class TimeSlotService {
   private List<TimeSlotDTO> generateAllSlotsForDate(Court court, LocalDate date) {
     List<TimeSlotDTO> slots = new ArrayList<>();
 
+    // Check if court has proper time configuration
     if (court.getOpeningTime() == null || court.getClosingTime() == null ||
         court.getSlotDurationMinutes() == null) {
+      log.warn("Court {} is missing time configuration: openingTime={}, closingTime={}, slotDurationMinutes={}",
+          court.getCourtId(), court.getOpeningTime(), court.getClosingTime(), court.getSlotDurationMinutes());
       return slots;
     }
 
@@ -111,6 +125,16 @@ public class TimeSlotService {
     }
 
     return slots;
+  }
+
+  /**
+   * Check if court has proper time configuration for slot generation
+   */
+  private boolean isCourtProperlyConfigured(Court court) {
+    return court.getOpeningTime() != null &&
+        court.getClosingTime() != null &&
+        court.getSlotDurationMinutes() != null &&
+        court.getSlotDurationMinutes() > 0;
   }
 
   /**
@@ -340,7 +364,8 @@ public class TimeSlotService {
    * Get all time slots for a court on a specific date (including blocked ones)
    */
   public List<TimeSlotDTO> getAllTimeSlotsForDate(Long courtId, LocalDate date) {
-    Court court = courtRepository.findById(courtId)
+    // Verify court exists
+    courtRepository.findById(courtId)
         .orElseThrow(() -> new RuntimeException("Court not found"));
 
     // Ensure slots are generated for this date
@@ -394,6 +419,60 @@ public class TimeSlotService {
         LocalTime.of(20, 0), // 8 PM
         LocalTime.of(21, 0) // 9 PM
     );
+  }
+
+  /**
+   * Check court configuration for time slot generation
+   */
+  public Map<String, Object> checkCourtConfiguration(Long courtId) {
+    Court court = courtRepository.findById(courtId)
+        .orElseThrow(() -> new RuntimeException("Court not found"));
+
+    Map<String, Object> config = new HashMap<>();
+    config.put("courtId", courtId);
+    config.put("courtName", court.getCourtName());
+    config.put("isProperlyConfigured", isCourtProperlyConfigured(court));
+
+    // Time configuration details
+    Map<String, Object> timeConfig = new HashMap<>();
+    timeConfig.put("openingTime", court.getOpeningTime());
+    timeConfig.put("closingTime", court.getClosingTime());
+    timeConfig.put("slotDurationMinutes", court.getSlotDurationMinutes());
+    timeConfig.put("hasBreakTime", court.getHasBreakTime());
+    timeConfig.put("breakStartTime", court.getBreakStartTime());
+    timeConfig.put("breakEndTime", court.getBreakEndTime());
+    timeConfig.put("isActiveOnWeekends", court.getIsActiveOnWeekends());
+    timeConfig.put("isActiveOnHolidays", court.getIsActiveOnHolidays());
+    timeConfig.put("status", court.getStatus());
+
+    config.put("timeConfiguration", timeConfig);
+
+    // Missing configuration details
+    List<String> missingConfig = new ArrayList<>();
+    if (court.getOpeningTime() == null)
+      missingConfig.add("openingTime");
+    if (court.getClosingTime() == null)
+      missingConfig.add("closingTime");
+    if (court.getSlotDurationMinutes() == null || court.getSlotDurationMinutes() <= 0) {
+      missingConfig.add("slotDurationMinutes");
+    }
+    config.put("missingConfiguration", missingConfig);
+
+    return config;
+  }
+
+  /**
+   * Check if slots exist for a court on a specific date
+   */
+  public boolean checkSlotsExist(Long courtId, LocalDate date) {
+    return slotRepository.existsByCourt_CourtIdAndDate(courtId, date);
+  }
+
+  /**
+   * Get the count of slots for a court on a specific date
+   */
+  public long getSlotCount(Long courtId, LocalDate date) {
+    return slotRepository.findByCourt_CourtIdAndDate(courtId, date).size();
   }
 
   /**

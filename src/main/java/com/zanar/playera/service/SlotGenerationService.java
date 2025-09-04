@@ -37,35 +37,57 @@ public class SlotGenerationService {
       return slots;
     }
 
+    // Check if court is available on this date (weekends/holidays)
+    if (!isCourtAvailableOnDate(court, date)) {
+      log.info("Court {} is not available on date {} (weekend/holiday check)", courtId, date);
+      return slots;
+    }
+
     LocalTime currentTime = court.getOpeningTime();
     LocalTime closingTime = court.getClosingTime();
     int slotDuration = court.getSlotDurationMinutes();
 
+    log.info("Generating slots for court {} on {} from {} to {} with {} minute duration",
+        courtId, date, currentTime, closingTime, slotDuration);
+
     while (currentTime.isBefore(closingTime)) {
-      // Check if this time is during break time
-      if (court.getHasBreakTime() && court.getBreakStartTime() != null && court.getBreakEndTime() != null) {
-        if (currentTime.isAfter(court.getBreakStartTime()) && currentTime.isBefore(court.getBreakEndTime())) {
-          currentTime = currentTime.plusMinutes(slotDuration);
-          continue;
-        }
+      LocalTime endTime = currentTime.plusMinutes(slotDuration);
+
+      // Skip if end time exceeds closing time
+      if (endTime.isAfter(closingTime)) {
+        break;
       }
 
-      // Check if court is available on this day
-      DayOfWeek dayOfWeek = date.getDayOfWeek();
-      if (court.getAvailabilitySchedule().containsKey(dayOfWeek)) {
-        var availability = court.getAvailabilitySchedule().get(dayOfWeek);
-        if (availability != null && availability.getIsAvailable()) {
+      // Check if this time is during break time
+      if (!isDuringBreakTime(court, currentTime, endTime)) {
+        // Check if slot already exists to avoid duplicates
+        List<Slot> existingSlots = slotRepository.findByCourt_CourtIdAndDateAndStartTimeAndEndTime(
+            courtId, date, currentTime, endTime);
+
+        if (existingSlots.isEmpty()) {
           Slot slot = new Slot();
           slot.setCourt(court);
           slot.setDate(date);
           slot.setStartTime(currentTime);
-          slot.setEndTime(currentTime.plusMinutes(slotDuration));
+          slot.setEndTime(endTime);
           slot.setStatus(Slot.SlotStatus.AVAILABLE);
           slots.add(slot);
+
+          log.debug("Created slot: {} - {} for court {} on {}", currentTime, endTime, courtId, date);
+        } else {
+          log.debug("Slot already exists: {} - {} for court {} on {}", currentTime, endTime, courtId, date);
         }
       }
 
-      currentTime = currentTime.plusMinutes(slotDuration);
+      currentTime = endTime;
+    }
+
+    // Save all generated slots to database
+    if (!slots.isEmpty()) {
+      List<Slot> savedSlots = slotRepository.saveAll(slots);
+      log.info("Generated and saved {} slots for court {} on {}", savedSlots.size(), courtId, date);
+    } else {
+      log.warn("No slots generated for court {} on {}", courtId, date);
     }
 
     return slots;
@@ -85,6 +107,57 @@ public class SlotGenerationService {
     }
 
     return allSlots;
+  }
+
+  /**
+   * Check if court is available on a specific date
+   */
+  private boolean isCourtAvailableOnDate(Court court, LocalDate date) {
+    DayOfWeek dayOfWeek = date.getDayOfWeek();
+
+    // Check if court is active on weekends
+    if ((dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY) &&
+        !Boolean.TRUE.equals(court.getIsActiveOnWeekends())) {
+      return false;
+    }
+
+    // Check if court is active on holidays (you can implement holiday checking
+    // logic)
+    if (isHoliday(date) && !Boolean.TRUE.equals(court.getIsActiveOnHolidays())) {
+      return false;
+    }
+
+    // Check if court status is active
+    return Court.CourtStatus.ACTIVE.equals(court.getStatus());
+  }
+
+  /**
+   * Check if a time slot is during break time
+   */
+  private boolean isDuringBreakTime(Court court, LocalTime startTime, LocalTime endTime) {
+    if (!Boolean.TRUE.equals(court.getHasBreakTime()) ||
+        court.getBreakStartTime() == null || court.getBreakEndTime() == null) {
+      return false;
+    }
+
+    // Check if the slot overlaps with break time
+    return !(endTime.isBefore(court.getBreakStartTime()) ||
+        startTime.isAfter(court.getBreakEndTime()));
+  }
+
+  /**
+   * Check if a date is a holiday (you can implement your own holiday logic)
+   */
+  private boolean isHoliday(LocalDate date) {
+    // Simple holiday checking - you can enhance this with a holiday API or database
+    int month = date.getMonthValue();
+    int day = date.getDayOfMonth();
+
+    // Example holidays (Sri Lanka)
+    return (month == 1 && day == 1) || // New Year
+        (month == 4 && day == 13) || // Sinhala & Tamil New Year
+        (month == 5 && day == 1) || // May Day
+        (month == 12 && day == 25); // Christmas
   }
 
   /**

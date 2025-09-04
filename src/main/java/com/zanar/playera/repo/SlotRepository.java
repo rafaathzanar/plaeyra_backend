@@ -90,6 +90,11 @@ public interface SlotRepository extends JpaRepository<Slot, Long> {
         // Find all slots for a court on a specific date
         List<Slot> findByCourt_CourtIdAndDate(Long courtId, LocalDate date);
 
+        // Find specific slot by court, date, start time and end time (for duplicate
+        // checking)
+        List<Slot> findByCourt_CourtIdAndDateAndStartTimeAndEndTime(
+                        Long courtId, LocalDate date, LocalTime startTime, LocalTime endTime);
+
         // Legacy method for backward compatibility
         List<Slot> findByCourt_CourtIdAndStatus(Long courtId, Slot.SlotStatus status);
 }
