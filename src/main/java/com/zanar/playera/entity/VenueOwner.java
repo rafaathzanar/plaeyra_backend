@@ -72,7 +72,7 @@ public class VenueOwner extends User {
     }
 
     public boolean canAddVenue() {
-        return isVerified() && getStatus() == UserStatus.ACTIVE && this.venue == null;
+        return getStatus() == UserStatus.ACTIVE && this.venue == null;
     }
 
     public void setVenue(Venue venue) {

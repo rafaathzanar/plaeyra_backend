@@ -60,7 +60,7 @@ public class VenueService {
         .orElseThrow(() -> new RuntimeException("Venue owner not found"));
 
     if (!owner.canAddVenue()) {
-      throw new RuntimeException("Venue owner is not verified or active, or already has a venue");
+      throw new RuntimeException("Venue owner is not active or already has a venue");
     }
 
     // Check if owner already has a venue

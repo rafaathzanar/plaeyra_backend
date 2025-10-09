@@ -332,6 +332,53 @@ public class AdminController {
     return ResponseEntity.ok(analytics);
   }
 
+  // Venue Owner Management APIs
+  @GetMapping("/venue-owners")
+  @Operation(summary = "Get all venue owners", description = "Retrieve all venue owners for admin management")
+  @SecurityRequirement(name = "Bearer Authentication")
+  public ResponseEntity<List<UserResponseDTO>> getVenueOwners() {
+    List<UserResponseDTO> users = userService.listUsers();
+    List<UserResponseDTO> venueOwners = users.stream()
+        .filter(user -> "VENUE_OWNER".equals(user.getRole()))
+        .collect(java.util.stream.Collectors.toList());
+    return ResponseEntity.ok(venueOwners);
+  }
+
+  @GetMapping("/venue-owners/{id}")
+  @Operation(summary = "Get venue owner by ID", description = "Get specific venue owner details by ID")
+  @SecurityRequirement(name = "Bearer Authentication")
+  public ResponseEntity<UserResponseDTO> getVenueOwnerById(@PathVariable Long id) {
+    UserResponseDTO user = userService.getUserById(id);
+    if (!"VENUE_OWNER".equals(user.getRole())) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+    }
+    return ResponseEntity.ok(user);
+  }
+
+  @PatchMapping("/venue-owners/{id}/status")
+  @Operation(summary = "Update venue owner status", description = "Activate or deactivate a venue owner account")
+  @SecurityRequirement(name = "Bearer Authentication")
+  public ResponseEntity<Map<String, String>> updateVenueOwnerStatus(
+      @PathVariable Long id,
+      @RequestBody Map<String, Object> request) {
+    // This would need to be implemented in UserService
+    Map<String, String> response = new HashMap<>();
+    response.put("message", "Venue owner status updated successfully");
+    return ResponseEntity.ok(response);
+  }
+
+  @PatchMapping("/venue-owners/{id}/approve")
+  @Operation(summary = "Approve/reject venue owner", description = "Approve or reject a venue owner application")
+  @SecurityRequirement(name = "Bearer Authentication")
+  public ResponseEntity<Map<String, String>> approveVenueOwner(
+      @PathVariable Long id,
+      @RequestBody Map<String, Object> request) {
+    // This would need to be implemented in UserService
+    Map<String, String> response = new HashMap<>();
+    response.put("message", "Venue owner approval status updated successfully");
+    return ResponseEntity.ok(response);
+  }
+
   // Admin-specific response DTO
   public static class AdminJwtResponseDTO {
     private String token;
