@@ -7,6 +7,7 @@ import com.zanar.playera.dto.UserResponseDTO;
 import com.zanar.playera.entity.Customer;
 import com.zanar.playera.entity.User;
 import com.zanar.playera.entity.VenueOwner;
+import com.zanar.playera.entity.Admin;
 import com.zanar.playera.entity.User.UserRole;
 
 @Component
@@ -31,6 +32,14 @@ public class UserMapper {
         customer.setRole(UserRole.CUSTOMER);
       }
       return customer;
+    } else if (dto.getRole() != null && dto.getRole().equalsIgnoreCase("ADMIN")) {
+      Admin admin = new Admin();
+      admin.setName(dto.getName());
+      admin.setEmail(dto.getEmail());
+      admin.setPassword(dto.getPassword());
+      admin.setPhone(dto.getPhone());
+      admin.setRole(UserRole.ADMIN);
+      return admin;
     } else {
       VenueOwner owner = new VenueOwner();
       owner.setName(dto.getName());
@@ -59,11 +68,15 @@ public class UserMapper {
     dto.setEmail(user.getEmail());
     dto.setPhone(user.getPhone());
     dto.setProfileImage(user.getProfileImage());
+    dto.setRole(user.getRole() != null ? user.getRole().name() : null);
     if (user instanceof Customer customer) {
       dto.setUserType("CUSTOMER");
       dto.setLoyaltyPoints(customer.getLoyaltyPoints());
     } else if (user instanceof VenueOwner) {
       dto.setUserType("VENUE_OWNER");
+      dto.setLoyaltyPoints(null);
+    } else if (user instanceof Admin) {
+      dto.setUserType("ADMIN");
       dto.setLoyaltyPoints(null);
     }
     return dto;

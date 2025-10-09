@@ -49,6 +49,7 @@ public class SecurityConfig {
         .requestMatchers(
             "/api/auth/login",
             "/api/auth/register",
+            "/api/admin/auth/login",
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -72,6 +73,9 @@ public class SecurityConfig {
         // and ADMIN only
         .requestMatchers("/api/venues/**", "/api/courts/**", "/api/equipment/**")
         .hasAnyRole("VENUE_OWNER", "ADMIN")
+        // Admin endpoints - only for ADMIN role
+        .requestMatchers("/api/admin/**")
+        .hasRole("ADMIN")
         .anyRequest().authenticated()
         .and()
         .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
