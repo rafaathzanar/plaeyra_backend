@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
 import java.time.LocalTime;
+import java.util.List;
 
 @Data
 public class CourtRequestDTO {
@@ -55,4 +56,7 @@ public class CourtRequestDTO {
 
     // Venue ID - optional for updates
     private Long venueId;
+
+    // Images
+    private List<String> images;
 }

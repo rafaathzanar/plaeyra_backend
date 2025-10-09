@@ -158,6 +158,9 @@ public class VenueMapper {
             courtDto.setMaintenanceStartTime(court.getMaintenanceStartTime());
             courtDto.setMaintenanceEndTime(court.getMaintenanceEndTime());
 
+            // Add images
+            courtDto.setImages(court.getImages());
+
             // Add venue information
             courtDto.setVenueId(venue.getVenueId());
             courtDto.setVenueName(venue.getName());

@@ -2,14 +2,15 @@ package com.zanar.playera.controller;
 
 import com.zanar.playera.dto.VenueRequestDTO;
 import com.zanar.playera.dto.VenueResponseDTO;
+import com.zanar.playera.dto.CourtResponseDTO;
 import com.zanar.playera.service.VenueService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.ArrayList;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,12 +28,60 @@ public class VenueController {
 
   @GetMapping
   public ResponseEntity<List<VenueResponseDTO>> listVenues() {
-    return ResponseEntity.ok(venueService.listVenues());
+    List<VenueResponseDTO> venues = venueService.listVenues();
+
+    // Debug logging for images
+    System.out.println("=== DEBUG: List Venues API Response ===");
+    System.out.println("Total venues: " + venues.size());
+    for (VenueResponseDTO venue : venues) {
+      System.out.println("Venue: " + venue.getName() + " - Images: " + venue.getImages() + " (Count: "
+          + (venue.getImages() != null ? venue.getImages().size() : 0) + ")");
+    }
+    System.out.println("=====================================");
+
+    return ResponseEntity.ok(venues);
   }
 
   @GetMapping("/{id}")
   public ResponseEntity<VenueResponseDTO> getVenueById(@PathVariable Long id) {
-    return ResponseEntity.ok(venueService.getVenueById(id));
+    VenueResponseDTO venue = venueService.getVenueById(id);
+    
+    // Debug logging for images
+    System.out.println("=== DEBUG: Get Venue By ID API Response ===");
+    System.out.println("Venue ID: " + id);
+    System.out.println("Venue: " + venue.getName() + " - Images: " + venue.getImages() + " (Count: "
+        + (venue.getImages() != null ? venue.getImages().size() : 0) + ")");
+    System.out.println("==========================================");
+    
+    return ResponseEntity.ok(venue);
+  }
+
+  @GetMapping("/test-images/{id}")
+  public ResponseEntity<Map<String, Object>> testImages(@PathVariable Long id) {
+    Map<String, Object> response = new HashMap<>();
+
+    try {
+      VenueResponseDTO venue = venueService.getVenueById(id);
+      response.put("venueId", venue.getVenueId());
+      response.put("venueName", venue.getName());
+      response.put("images", venue.getImages());
+      response.put("imagesCount", venue.getImages() != null ? venue.getImages().size() : 0);
+      response.put("imagesType", venue.getImages() != null ? venue.getImages().getClass().getSimpleName() : "null");
+
+      // Also check courts
+      if (venue.getCourts() != null && !venue.getCourts().isEmpty()) {
+        CourtResponseDTO firstCourt = venue.getCourts().get(0);
+        response.put("firstCourtId", firstCourt.getCourtId());
+        response.put("firstCourtName", firstCourt.getCourtName());
+        response.put("firstCourtImages", firstCourt.getImages());
+        response.put("firstCourtImagesCount", firstCourt.getImages() != null ? firstCourt.getImages().size() : 0);
+      }
+
+      return ResponseEntity.ok(response);
+    } catch (Exception e) {
+      response.put("error", e.getMessage());
+      return ResponseEntity.status(500).body(response);
+    }
   }
 
   @GetMapping("/owner/{ownerId}/venue")

@@ -2,7 +2,6 @@ package com.zanar.playera.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.time.DayOfWeek;
@@ -102,12 +101,18 @@ public class Venue {
     private LocalTime latestBookingTime = LocalTime.of(23, 0); // 11 PM
 
     @ElementCollection
+    @CollectionTable(name = "venue_images", joinColumns = @JoinColumn(name = "venue_id"))
+    @Column(name = "image_url")
     private List<String> images = new ArrayList<>();
 
     @ElementCollection
+    @CollectionTable(name = "venue_amenities", joinColumns = @JoinColumn(name = "venue_id"))
+    @Column(name = "amenity")
     private List<String> amenities = new ArrayList<>();
 
     @ElementCollection
+    @CollectionTable(name = "venue_sports_types", joinColumns = @JoinColumn(name = "venue_id"))
+    @Column(name = "sport_type")
     private List<String> sportsTypes = new ArrayList<>();
 
     @ElementCollection

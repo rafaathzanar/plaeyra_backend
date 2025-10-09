@@ -56,10 +56,9 @@ public class SecurityConfig {
             "/swagger-resources/**",
             "/webjars/**")
         .permitAll()
-        // Allow CUSTOMER users to view venues, courts, and equipment (GET requests
-        // only)
+        // Allow public access to view venues, courts, and equipment (GET requests only)
         .requestMatchers(HttpMethod.GET, "/api/venues/**", "/api/courts/**", "/api/equipment/**")
-        .hasAnyRole("CUSTOMER", "VENUE_OWNER", "ADMIN")
+        .permitAll()
         // Allow CUSTOMER users to create and manage their own bookings
         .requestMatchers("/api/bookings/**")
         .hasAnyRole("CUSTOMER", "VENUE_OWNER", "ADMIN")
@@ -71,7 +70,11 @@ public class SecurityConfig {
         .hasAnyRole("CUSTOMER", "VENUE_OWNER", "ADMIN")
         // Restrict venue/court/equipment management (POST, PUT, DELETE) to VENUE_OWNER
         // and ADMIN only
-        .requestMatchers("/api/venues/**", "/api/courts/**", "/api/equipment/**")
+        .requestMatchers(HttpMethod.POST, "/api/venues/**", "/api/courts/**", "/api/equipment/**")
+        .hasAnyRole("VENUE_OWNER", "ADMIN")
+        .requestMatchers(HttpMethod.PUT, "/api/venues/**", "/api/courts/**", "/api/equipment/**")
+        .hasAnyRole("VENUE_OWNER", "ADMIN")
+        .requestMatchers(HttpMethod.DELETE, "/api/venues/**", "/api/courts/**", "/api/equipment/**")
         .hasAnyRole("VENUE_OWNER", "ADMIN")
         // Admin endpoints - only for ADMIN role
         .requestMatchers("/api/admin/**")

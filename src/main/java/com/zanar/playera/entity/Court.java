@@ -2,8 +2,6 @@ package com.zanar.playera.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import lombok.*;
 
 import java.time.DayOfWeek;
@@ -85,6 +83,11 @@ public class Court {
 
     @ElementCollection
     private Map<DayOfWeek, CourtAvailability> availabilitySchedule = new HashMap<>();
+
+    @ElementCollection
+    @CollectionTable(name = "court_images", joinColumns = @JoinColumn(name = "court_id"))
+    @Column(name = "image_url")
+    private List<String> images = new ArrayList<>();
 
     public enum CourtType {
         BASKETBALL, FUTSAL, BADMINTON, TENNIS, CRICKET, MULTI_SPORT, VOLLEYBALL, SOCCER

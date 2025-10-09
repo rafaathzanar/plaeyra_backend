@@ -13,6 +13,81 @@ public class CourtMapper {
     court.setCapacity(dto.getCapacity());
     court.setPricePerHour(java.math.BigDecimal.valueOf(dto.getPricePerHour()));
     court.setVenue(venue);
+
+    // Set additional fields if provided
+    if (dto.getDescription() != null) {
+      court.setDescription(dto.getDescription());
+    }
+    if (dto.getIsIndoor() != null) {
+      court.setIsIndoor(dto.getIsIndoor());
+    }
+    if (dto.getIsLighted() != null) {
+      court.setIsLighted(dto.getIsLighted());
+    }
+    if (dto.getIsAirConditioned() != null) {
+      court.setIsAirConditioned(dto.getIsAirConditioned());
+    }
+    if (dto.getMinBookingDuration() != null) {
+      court.setMinBookingDuration(dto.getMinBookingDuration());
+    }
+    if (dto.getMaxBookingDuration() != null) {
+      court.setMaxBookingDuration(dto.getMaxBookingDuration());
+    }
+    if (dto.getOpeningTime() != null) {
+      court.setOpeningTime(dto.getOpeningTime());
+    }
+    if (dto.getClosingTime() != null) {
+      court.setClosingTime(dto.getClosingTime());
+    }
+    if (dto.getSlotDurationMinutes() != null) {
+      court.setSlotDurationMinutes(dto.getSlotDurationMinutes());
+    }
+    if (dto.getIsActiveOnWeekends() != null) {
+      court.setIsActiveOnWeekends(dto.getIsActiveOnWeekends());
+    }
+    if (dto.getIsActiveOnHolidays() != null) {
+      court.setIsActiveOnHolidays(dto.getIsActiveOnHolidays());
+    }
+    if (dto.getHasBreakTime() != null) {
+      court.setHasBreakTime(dto.getHasBreakTime());
+    }
+    if (dto.getBreakStartTime() != null) {
+      court.setBreakStartTime(dto.getBreakStartTime());
+    }
+    if (dto.getBreakEndTime() != null) {
+      court.setBreakEndTime(dto.getBreakEndTime());
+    }
+    if (dto.getDynamicPricingEnabled() != null) {
+      court.setDynamicPricingEnabled(dto.getDynamicPricingEnabled());
+    }
+    if (dto.getPeakHourStart() != null) {
+      court.setPeakHourStart(dto.getPeakHourStart());
+    }
+    if (dto.getPeakHourEnd() != null) {
+      court.setPeakHourEnd(dto.getPeakHourEnd());
+    }
+    if (dto.getPeakHourMultiplier() != null) {
+      court.setPeakHourMultiplier(dto.getPeakHourMultiplier());
+    }
+    if (dto.getOffPeakMultiplier() != null) {
+      court.setOffPeakMultiplier(dto.getOffPeakMultiplier());
+    }
+    if (dto.getWeekendMultiplier() != null) {
+      court.setWeekendMultiplier(dto.getWeekendMultiplier());
+    }
+    if (dto.getMaintenanceMode() != null) {
+      court.setMaintenanceMode(dto.getMaintenanceMode());
+    }
+    if (dto.getMaintenanceStartTime() != null) {
+      court.setMaintenanceStartTime(dto.getMaintenanceStartTime());
+    }
+    if (dto.getMaintenanceEndTime() != null) {
+      court.setMaintenanceEndTime(dto.getMaintenanceEndTime());
+    }
+    if (dto.getImages() != null) {
+      court.setImages(dto.getImages());
+    }
+
     return court;
   }
 
@@ -73,6 +148,9 @@ public class CourtMapper {
       dto.setVenueId(court.getVenue().getVenueId());
       dto.setVenueName(court.getVenue().getName());
     }
+
+    // Images
+    dto.setImages(court.getImages());
 
     return dto;
   }

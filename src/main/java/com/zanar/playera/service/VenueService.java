@@ -88,6 +88,31 @@ public class VenueService {
   }
 
   /**
+   * Add images to venue
+   */
+  public void addImagesToVenue(Long venueId, String[] imageUrls) {
+    Venue venue = venueRepository.findById(venueId)
+        .orElseThrow(() -> new RuntimeException("Venue not found"));
+
+    for (String imageUrl : imageUrls) {
+      venue.getImages().add(imageUrl);
+    }
+
+    venueRepository.save(venue);
+  }
+
+  /**
+   * Remove image from venue
+   */
+  public void removeImageFromVenue(Long venueId, String imageUrl) {
+    Venue venue = venueRepository.findById(venueId)
+        .orElseThrow(() -> new RuntimeException("Venue not found"));
+
+    venue.getImages().remove(imageUrl);
+    venueRepository.save(venue);
+  }
+
+  /**
    * Get all venues with filtering and pagination
    */
   public Page<VenueResponseDTO> getAllVenues(String location, String sportType, String venueType,

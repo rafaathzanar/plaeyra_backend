@@ -70,6 +70,31 @@ public class CourtService {
   }
 
   /**
+   * Add images to court
+   */
+  public void addImagesToCourt(Long courtId, String[] imageUrls) {
+    Court court = courtRepository.findById(courtId)
+        .orElseThrow(() -> new RuntimeException("Court not found"));
+
+    for (String imageUrl : imageUrls) {
+      court.getImages().add(imageUrl);
+    }
+
+    courtRepository.save(court);
+  }
+
+  /**
+   * Remove image from court
+   */
+  public void removeImageFromCourt(Long courtId, String imageUrl) {
+    Court court = courtRepository.findById(courtId)
+        .orElseThrow(() -> new RuntimeException("Court not found"));
+
+    court.getImages().remove(imageUrl);
+    courtRepository.save(court);
+  }
+
+  /**
    * Get all courts with filtering and pagination
    */
   public Page<CourtResponseDTO> getAllCourts(Long venueId, String sportType,

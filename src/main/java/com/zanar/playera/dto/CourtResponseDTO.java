@@ -2,6 +2,7 @@ package com.zanar.playera.dto;
 
 import lombok.Data;
 import java.time.LocalTime;
+import java.util.List;
 
 @Data
 public class CourtResponseDTO {
@@ -53,4 +54,7 @@ public class CourtResponseDTO {
   // Venue information
   private Long venueId;
   private String venueName;
+
+  // Images
+  private List<String> images;
 }
