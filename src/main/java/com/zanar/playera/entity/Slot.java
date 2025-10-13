@@ -6,7 +6,9 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Entity
-@Table(name = "slots")
+@Table(name = "slots", uniqueConstraints = {
+        @UniqueConstraint(columnNames = { "court_id", "date", "startTime", "endTime" })
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -34,6 +36,9 @@ public class Slot {
     @ManyToOne
     @JoinColumn(name = "booking_id")
     private Booking booking;
+
+    @Version
+    private Long version; // Optimistic locking
 
     public enum SlotStatus {
         AVAILABLE, BOOKED, RESERVED, MAINTENANCE

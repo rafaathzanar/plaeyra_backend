@@ -26,20 +26,21 @@ public class TimeSlotController {
   private final SlotGenerationService slotGenerationService;
 
   /**
-   * Get available time slots for a court on a specific date
+   * Get all time slots for a court on a specific date (including booked ones)
+   * This endpoint is accessible to customers to show complete schedule
    */
   @GetMapping("/court/{courtId}/date/{date}")
   @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
-  public ResponseEntity<List<TimeSlotService.TimeSlotDTO>> getAvailableSlots(
+  public ResponseEntity<List<TimeSlotService.TimeSlotDTO>> getAllSlots(
       @PathVariable Long courtId,
       @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
 
     try {
-      List<TimeSlotService.TimeSlotDTO> slots = timeSlotService.generateAvailableSlots(courtId, date);
-      log.info("Generated {} available slots for court {} on date {}", slots.size(), courtId, date);
+      List<TimeSlotService.TimeSlotDTO> slots = timeSlotService.getAllTimeSlotsForDate(courtId, date);
+      log.info("Retrieved {} total slots for court {} on date {}", slots.size(), courtId, date);
       return ResponseEntity.ok(slots);
     } catch (Exception e) {
-      log.error("Error getting available slots for court {} on date {}", courtId, date, e);
+      log.error("Error getting all slots for court {} on date {}", courtId, date, e);
       return ResponseEntity.badRequest().build();
     }
   }

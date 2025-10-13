@@ -86,7 +86,7 @@ public class Court {
 
     @ElementCollection
     @CollectionTable(name = "court_images", joinColumns = @JoinColumn(name = "court_id"))
-    @Column(name = "image_url")
+    @Column(name = "image_url", length = 2000)
     private List<String> images = new ArrayList<>();
 
     public enum CourtType {

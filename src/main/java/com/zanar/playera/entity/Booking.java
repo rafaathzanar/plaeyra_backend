@@ -25,7 +25,8 @@ public class Booking {
 
     private int duration; // in hours
     private double totalCost;
-    private String bookingStatus;
+    @Enumerated(EnumType.STRING)
+    private BookingStatus bookingStatus = BookingStatus.BOOKED;
     private String specialRequests; // Optional special requests from customer
 
     @ManyToOne(fetch = FetchType.EAGER)
@@ -48,4 +49,8 @@ public class Booking {
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @Fetch(FetchMode.SUBSELECT)
     private List<BookingTimeSlot> bookingTimeSlots;
+
+    public enum BookingStatus {
+        BOOKED, CANCELLED, COMPLETED, NO_SHOW, REFUNDED
+    }
 }

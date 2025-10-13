@@ -18,8 +18,8 @@ public class BookingMapper {
     dto.setDuration(booking.getDuration());
     dto.setTotalCost(booking.getTotalCost());
     dto.setTotalAmount(booking.getTotalCost()); // For backward compatibility
-    dto.setBookingStatus(booking.getBookingStatus());
-    dto.setStatus(booking.getBookingStatus()); // For backward compatibility
+    dto.setBookingStatus(booking.getBookingStatus().name());
+    dto.setStatus(booking.getBookingStatus().name()); // For backward compatibility
     dto.setSpecialRequests(booking.getSpecialRequests());
     dto.setNotes(booking.getSpecialRequests()); // For backward compatibility
 

@@ -102,7 +102,7 @@ public class Venue {
 
     @ElementCollection
     @CollectionTable(name = "venue_images", joinColumns = @JoinColumn(name = "venue_id"))
-    @Column(name = "image_url")
+    @Column(name = "image_url", length = 2000)
     private List<String> images = new ArrayList<>();
 
     @ElementCollection

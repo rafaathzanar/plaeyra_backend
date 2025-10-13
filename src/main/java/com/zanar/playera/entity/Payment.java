@@ -25,7 +25,7 @@ public class Payment {
   private String currency = "LKR"; // Sri Lankan Rupees
 
   @Enumerated(EnumType.STRING)
-  private PaymentStatus status = PaymentStatus.PENDING;
+  private PaymentStatus status = PaymentStatus.SUCCEEDED;
 
   @Enumerated(EnumType.STRING)
   private PaymentMethod paymentMethod = PaymentMethod.CARD;
@@ -86,7 +86,7 @@ public class Payment {
   private String metadata; // JSON string for additional data
 
   public enum PaymentStatus {
-    PENDING, PROCESSING, SUCCEEDED, FAILED, CANCELLED, REFUNDED, PARTIALLY_REFUNDED
+    PROCESSING, SUCCEEDED, FAILED, CANCELLED, REFUNDED, PARTIALLY_REFUNDED
   }
 
   public enum PaymentMethod {

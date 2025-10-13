@@ -5,7 +5,9 @@ import lombok.*;
 import java.time.LocalTime;
 
 @Entity
-@Table(name = "booking_time_slots")
+@Table(name = "booking_time_slots", uniqueConstraints = {
+    @UniqueConstraint(columnNames = { "court_id", "startTime", "endTime", "booking_id" })
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -33,6 +35,9 @@ public class BookingTimeSlot {
 
   @Column(nullable = false)
   private double cost; // cost for this specific time range
+
+  @Version
+  private Long version; // Optimistic locking
 
   // Helper methods
   public boolean overlapsWith(LocalTime otherStart, LocalTime otherEnd) {

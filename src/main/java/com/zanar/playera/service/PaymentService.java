@@ -129,7 +129,7 @@ public class PaymentService {
     // Update booking status
     Booking booking = payment.getBooking();
     if (booking != null) {
-      booking.setBookingStatus("CONFIRMED");
+      booking.setBookingStatus(Booking.BookingStatus.BOOKED);
       bookingRepository.save(booking);
 
       // Award loyalty points
@@ -174,7 +174,7 @@ public class PaymentService {
     if (payment.isFullRefund()) {
       Booking booking = payment.getBooking();
       if (booking != null) {
-        booking.setBookingStatus("CANCELLED");
+        booking.setBookingStatus(Booking.BookingStatus.CANCELLED);
         bookingRepository.save(booking);
       }
     }
