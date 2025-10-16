@@ -393,6 +393,10 @@ public class TimeSlotService {
         slot.getStartTime(),
         slot.getEndTime());
 
+    log.debug("Converting slot to DTO - Court: {}, Date: {}, Time: {} to {}, Base Price: {}, Dynamic Price: {}",
+        slot.getCourt().getCourtId(), slot.getDate(), slot.getStartTime(), slot.getEndTime(),
+        slot.getCourt().getPricePerHour(), dynamicPrice);
+
     return TimeSlotDTO.builder()
         .startTime(slot.getStartTime())
         .endTime(slot.getEndTime())

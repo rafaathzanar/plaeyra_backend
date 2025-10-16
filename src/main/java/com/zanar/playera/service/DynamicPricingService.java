@@ -30,8 +30,13 @@ public class DynamicPricingService {
    */
   public BigDecimal calculateSlotPrice(Court court, LocalDate date, LocalTime startTime, LocalTime endTime) {
     if (!Boolean.TRUE.equals(court.getDynamicPricingEnabled())) {
+      log.debug("Dynamic pricing disabled for court {}, using base price: {}", court.getCourtId(),
+          court.getPricePerHour());
       return court.getPricePerHour();
     }
+
+    log.debug("Calculating dynamic price for court {} on {} from {} to {}",
+        court.getCourtId(), date, startTime, endTime);
 
     // Calculate duration in hours
     long durationMinutes = java.time.Duration.between(startTime, endTime).toMinutes();
@@ -62,7 +67,10 @@ public class DynamicPricingService {
       currentTime = segmentEnd;
     }
 
-    return totalPrice.setScale(2, RoundingMode.HALF_UP);
+    BigDecimal finalPrice = totalPrice.setScale(2, RoundingMode.HALF_UP);
+    log.debug("Final dynamic price for court {} on {} from {} to {}: {}",
+        court.getCourtId(), date, startTime, endTime, finalPrice);
+    return finalPrice;
   }
 
   /**
@@ -73,31 +81,40 @@ public class DynamicPricingService {
     BigDecimal multiplier = BigDecimal.ONE;
     DayOfWeek dayOfWeek = date.getDayOfWeek();
 
+    log.debug("Calculating hour price for court {} at time {} on {}", court.getCourtId(), time, date);
+    log.debug("Base price: {}, Peak start: {}, Peak end: {}", basePrice, court.getPeakHourStart(),
+        court.getPeakHourEnd());
+    log.debug("Peak multiplier: {}, Off-peak multiplier: {}", court.getPeakHourMultiplier(),
+        court.getOffPeakMultiplier());
+
     // Peak hour pricing
     if (isPeakHour(court, time)) {
       multiplier = multiplier
           .multiply(BigDecimal.valueOf(court.getPeakHourMultiplier() != null ? court.getPeakHourMultiplier() : 1.5));
-      log.debug("Peak hour multiplier applied: {}", court.getPeakHourMultiplier());
+      log.debug("PEAK HOUR detected - multiplier applied: {}", multiplier);
     } else {
       multiplier = multiplier
           .multiply(BigDecimal.valueOf(court.getOffPeakMultiplier() != null ? court.getOffPeakMultiplier() : 0.8));
-      log.debug("Off-peak multiplier applied: {}", court.getOffPeakMultiplier());
+      log.debug("OFF-PEAK HOUR detected - multiplier applied: {}", multiplier);
     }
 
     // Weekend pricing
     if (isWeekend(dayOfWeek)) {
       multiplier = multiplier
           .multiply(BigDecimal.valueOf(court.getWeekendMultiplier() != null ? court.getWeekendMultiplier() : 1.2));
-      log.debug("Weekend multiplier applied: {}", court.getWeekendMultiplier());
+      log.debug("WEEKEND detected - multiplier applied: {}", multiplier);
     }
 
     // Special day pricing (holidays, events, etc.)
     BigDecimal specialPrice = getSpecialDayPrice(court, date, time);
     if (specialPrice != null) {
+      log.debug("SPECIAL DAY PRICE applied: {}", specialPrice);
       return specialPrice;
     }
 
-    return basePrice.multiply(multiplier).setScale(2, RoundingMode.HALF_UP);
+    BigDecimal finalPrice = basePrice.multiply(multiplier).setScale(2, RoundingMode.HALF_UP);
+    log.debug("Final calculated price: {} * {} = {}", basePrice, multiplier, finalPrice);
+    return finalPrice;
   }
 
   /**
@@ -105,15 +122,23 @@ public class DynamicPricingService {
    */
   private boolean isPeakHour(Court court, LocalTime time) {
     if (court.getPeakHourStart() == null || court.getPeakHourEnd() == null) {
+      log.debug("Peak hours not configured for court {} (start: {}, end: {})",
+          court.getCourtId(), court.getPeakHourStart(), court.getPeakHourEnd());
       return false;
     }
 
+    boolean isPeak;
     // Handle peak hours that span midnight
     if (court.getPeakHourStart().isAfter(court.getPeakHourEnd())) {
-      return time.isAfter(court.getPeakHourStart()) || time.isBefore(court.getPeakHourEnd());
+      isPeak = !time.isBefore(court.getPeakHourStart()) || time.isBefore(court.getPeakHourEnd());
     } else {
-      return time.isAfter(court.getPeakHourStart()) && time.isBefore(court.getPeakHourEnd());
+      isPeak = !time.isBefore(court.getPeakHourStart()) && time.isBefore(court.getPeakHourEnd());
     }
+
+    log.debug("Peak hour check for court {} at time {}: {} (peak hours: {} to {})",
+        court.getCourtId(), time, isPeak, court.getPeakHourStart(), court.getPeakHourEnd());
+
+    return isPeak;
   }
 
   /**
