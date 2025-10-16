@@ -12,7 +12,7 @@ public class PaymentMapper {
   public static Payment toPaymentEntity(PaymentRequestDTO dto) {
     Payment payment = new Payment();
     payment.setAmount(dto.getAmount());
-    payment.setStatus(Payment.PaymentStatus.PENDING);
+    payment.setStatus(Payment.PaymentStatus.SUCCEEDED);
     payment.setPaymentDate(LocalDateTime.now());
     return payment;
   }

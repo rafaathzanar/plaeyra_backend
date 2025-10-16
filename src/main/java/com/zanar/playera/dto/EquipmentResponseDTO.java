@@ -13,15 +13,13 @@ public class EquipmentResponseDTO {
     private Integer availableQuantity;
     private Integer rentedQuantity;
     private String status;
-    private Double depositAmount;
     private Integer minimumRentalHours;
     private Integer maximumRentalHours;
     private Long courtId;
     private String courtName;
     private LocalDateTime lastMaintenanceDate;
     private Boolean isAvailable;
-    
+
     // Calculated fields
     private Double estimatedCostPerHour;
-    private Double estimatedDeposit;
 }

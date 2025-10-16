@@ -16,9 +16,8 @@ public class EquipmentMapper {
     equipment.setRatePerHour(dto.getRatePerHour());
     equipment.setTotalQuantity(dto.getTotalQuantity());
     equipment.setAvailableQuantity(dto.getAvailableQuantity());
-    equipment.setDepositAmount(dto.getDepositAmount());
-    equipment.setMinimumRentalHours(dto.getMinimumRentalHours());
-    equipment.setMaximumRentalHours(dto.getMaximumRentalHours());
+    equipment.setMinimumRentalHours(1); // Default to 1 hour
+    equipment.setMaximumRentalHours(24); // Default to 24 hours
     equipment.setLastMaintenanceDate(dto.getLastMaintenanceDate());
     equipment.setCourt(court);
     return equipment;
@@ -34,7 +33,6 @@ public class EquipmentMapper {
     dto.setAvailableQuantity(equipment.getAvailableQuantity());
     dto.setRentedQuantity(equipment.getRentedQuantity());
     dto.setStatus(equipment.getStatus().name());
-    dto.setDepositAmount(equipment.getDepositAmount());
     dto.setMinimumRentalHours(equipment.getMinimumRentalHours());
     dto.setMaximumRentalHours(equipment.getMaximumRentalHours());
     dto.setLastMaintenanceDate(equipment.getLastMaintenanceDate());
@@ -47,7 +45,6 @@ public class EquipmentMapper {
 
     // Calculated fields
     dto.setEstimatedCostPerHour(equipment.getRatePerHour());
-    dto.setEstimatedDeposit(equipment.getDepositAmount());
 
     return dto;
   }

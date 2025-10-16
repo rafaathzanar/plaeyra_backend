@@ -7,6 +7,8 @@ import com.zanar.playera.dto.UserResponseDTO;
 import com.zanar.playera.entity.Customer;
 import com.zanar.playera.entity.User;
 import com.zanar.playera.entity.VenueOwner;
+import com.zanar.playera.entity.Admin;
+import com.zanar.playera.entity.User.UserRole;
 
 @Component
 public class UserMapper {
@@ -18,13 +20,43 @@ public class UserMapper {
       customer.setPassword(dto.getPassword());
       customer.setPhone(dto.getPhone());
       customer.setLoyaltyPoints(dto.getLoyaltyPoints() != null ? dto.getLoyaltyPoints() : 0);
+      // Set the role from DTO
+      if (dto.getRole() != null) {
+        try {
+          customer.setRole(UserRole.valueOf(dto.getRole()));
+        } catch (IllegalArgumentException e) {
+          // Default to CUSTOMER if role is invalid
+          customer.setRole(UserRole.CUSTOMER);
+        }
+      } else {
+        customer.setRole(UserRole.CUSTOMER);
+      }
       return customer;
+    } else if (dto.getRole() != null && dto.getRole().equalsIgnoreCase("ADMIN")) {
+      Admin admin = new Admin();
+      admin.setName(dto.getName());
+      admin.setEmail(dto.getEmail());
+      admin.setPassword(dto.getPassword());
+      admin.setPhone(dto.getPhone());
+      admin.setRole(UserRole.ADMIN);
+      return admin;
     } else {
       VenueOwner owner = new VenueOwner();
       owner.setName(dto.getName());
       owner.setEmail(dto.getEmail());
       owner.setPassword(dto.getPassword());
       owner.setPhone(dto.getPhone());
+      // Set the role from DTO
+      if (dto.getRole() != null) {
+        try {
+          owner.setRole(UserRole.valueOf(dto.getRole()));
+        } catch (IllegalArgumentException e) {
+          // Default to VENUE_OWNER if role is invalid
+          owner.setRole(UserRole.VENUE_OWNER);
+        }
+      } else {
+        owner.setRole(UserRole.VENUE_OWNER);
+      }
       return owner;
     }
   }
@@ -35,11 +67,16 @@ public class UserMapper {
     dto.setName(user.getName());
     dto.setEmail(user.getEmail());
     dto.setPhone(user.getPhone());
+    dto.setProfileImage(user.getProfileImage());
+    dto.setRole(user.getRole() != null ? user.getRole().name() : null);
     if (user instanceof Customer customer) {
       dto.setUserType("CUSTOMER");
       dto.setLoyaltyPoints(customer.getLoyaltyPoints());
     } else if (user instanceof VenueOwner) {
       dto.setUserType("VENUE_OWNER");
+      dto.setLoyaltyPoints(null);
+    } else if (user instanceof Admin) {
+      dto.setUserType("ADMIN");
       dto.setLoyaltyPoints(null);
     }
     return dto;

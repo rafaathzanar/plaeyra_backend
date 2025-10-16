@@ -3,6 +3,8 @@ package com.zanar.playera.service;
 import com.zanar.playera.dto.UserLoginDTO;
 import com.zanar.playera.dto.UserRegistrationDTO;
 import com.zanar.playera.dto.UserResponseDTO;
+import com.zanar.playera.dto.UserUpdateDTO;
+import com.zanar.playera.dto.ChangePasswordDTO;
 import com.zanar.playera.entity.User;
 import com.zanar.playera.mapper.UserMapper;
 import com.zanar.playera.repo.UserRepository;
@@ -11,7 +13,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -60,7 +61,8 @@ public class UserService {
 
   public void requestPasswordReset(String email) {
     var userOpt = userRepository.findAll().stream().filter(u -> u.getEmail().equalsIgnoreCase(email)).findFirst();
-    if (userOpt.isEmpty()) throw new RuntimeException("User not found");
+    if (userOpt.isEmpty())
+      throw new RuntimeException("User not found");
     // Generate a simple token (in production, use a secure random token)
     String token = java.util.UUID.randomUUID().toString();
     passwordResetTokens.put(token, email);
@@ -70,12 +72,67 @@ public class UserService {
 
   public void resetPassword(String token, String newPassword) {
     String email = passwordResetTokens.get(token);
-    if (email == null) throw new RuntimeException("Invalid or expired reset token");
+    if (email == null)
+      throw new RuntimeException("Invalid or expired reset token");
     var userOpt = userRepository.findAll().stream().filter(u -> u.getEmail().equalsIgnoreCase(email)).findFirst();
-    if (userOpt.isEmpty()) throw new RuntimeException("User not found");
+    if (userOpt.isEmpty())
+      throw new RuntimeException("User not found");
     var user = userOpt.get();
-    user.setPassword(newPassword); // In production, hash the password!
+    user.setPassword(passwordEncoder.encode(newPassword));
     userRepository.save(user);
     passwordResetTokens.remove(token);
+  }
+
+  public UserResponseDTO updateUserProfile(String email, UserUpdateDTO updateDTO) {
+    User user = userRepository.findByEmail(email);
+    if (user == null) {
+      throw new RuntimeException("User not found");
+    }
+
+    // Update fields if provided
+    if (updateDTO.getName() != null && !updateDTO.getName().trim().isEmpty()) {
+      user.setName(updateDTO.getName());
+    }
+    if (updateDTO.getPhone() != null && !updateDTO.getPhone().trim().isEmpty()) {
+      user.setPhone(updateDTO.getPhone());
+    }
+    if (updateDTO.getProfileImage() != null) {
+      user.setProfileImage(updateDTO.getProfileImage());
+    }
+
+    User saved = userRepository.save(user);
+    return UserMapper.toUserResponseDTO(saved);
+  }
+
+  public void changePassword(String email, ChangePasswordDTO changePasswordDTO) {
+    User user = userRepository.findByEmail(email);
+    if (user == null) {
+      throw new RuntimeException("User not found");
+    }
+
+    // Verify current password
+    if (!passwordEncoder.matches(changePasswordDTO.getCurrentPassword(), user.getPassword())) {
+      throw new RuntimeException("Current password is incorrect");
+    }
+
+    // Verify new password matches confirmation
+    if (!changePasswordDTO.getNewPassword().equals(changePasswordDTO.getConfirmPassword())) {
+      throw new RuntimeException("New password and confirmation do not match");
+    }
+
+    // Update password
+    user.setPassword(passwordEncoder.encode(changePasswordDTO.getNewPassword()));
+    userRepository.save(user);
+  }
+
+  public void deleteUserAccount(String email) {
+    User user = userRepository.findByEmail(email);
+    if (user == null) {
+      throw new RuntimeException("User not found");
+    }
+
+    // Soft delete by setting status to DELETED
+    user.setStatus(User.UserStatus.DELETED);
+    userRepository.save(user);
   }
 }

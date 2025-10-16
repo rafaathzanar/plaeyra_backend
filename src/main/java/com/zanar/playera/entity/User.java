@@ -47,7 +47,7 @@ public abstract class User {
 
     private LocalDateTime lastLoginAt;
 
-    private boolean emailVerified = false;
+    private Boolean emailVerified = false;
 
     private String emailVerificationToken;
 

@@ -2,7 +2,7 @@ package com.zanar.playera.controller;
 
 import com.zanar.playera.dto.CourtRequestDTO;
 import com.zanar.playera.dto.CourtResponseDTO;
-import com.zanar.playera.dto.DynamicPricingDTO;
+
 import com.zanar.playera.service.CourtService;
 import com.zanar.playera.service.DynamicPricingService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,6 +20,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/courts")
@@ -53,7 +54,7 @@ public class CourtController {
   public ResponseEntity<Page<CourtResponseDTO>> getAllCourts(
       @RequestParam(required = false) Long venueId,
       @RequestParam(required = false) String sportType,
-      @RequestParam(required = false) String surfaceType,
+
       @RequestParam(required = false) Boolean isIndoor,
       @RequestParam(required = false) Boolean isLighted,
       @RequestParam(required = false) Boolean isAirConditioned,
@@ -63,7 +64,7 @@ public class CourtController {
       Pageable pageable) {
 
     Page<CourtResponseDTO> courts = courtService.getAllCourts(
-        venueId, sportType, surfaceType, isIndoor, isLighted,
+        venueId, sportType, isIndoor, isLighted,
         isAirConditioned, minPrice, maxPrice, status, pageable);
     return ResponseEntity.ok(courts);
   }
@@ -107,6 +108,19 @@ public class CourtController {
   public ResponseEntity<CourtResponseDTO> updateCourt(
       @PathVariable Long id,
       @Valid @RequestBody CourtRequestDTO courtRequestDTO) {
+
+    // Add debug logging to see user authentication details
+    org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder
+        .getContext().getAuthentication();
+
+    if (auth != null) {
+      System.out.println("=== DEBUG: Court Update ===");
+      System.out.println("User: " + auth.getName());
+      System.out.println("Authorities: " + auth.getPrincipal());
+      System.out.println("Court ID: " + id);
+      System.out.println("Court Data: " + courtRequestDTO);
+      System.out.println("===============================");
+    }
 
     CourtResponseDTO updatedCourt = courtService.updateCourt(id, courtRequestDTO);
     return ResponseEntity.ok(updatedCourt);
@@ -178,12 +192,35 @@ public class CourtController {
   @PostMapping("/{id}/dynamic-pricing")
   @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
   @Operation(summary = "Update dynamic pricing", description = "Updates dynamic pricing configuration for the court")
-  public ResponseEntity<Void> updateDynamicPricing(
+  public ResponseEntity<Map<String, Object>> updateDynamicPricing(
       @PathVariable Long id,
-      @RequestBody DynamicPricingDTO dynamicPricingDTO) {
+      @RequestBody Map<String, Object> pricingSettings) {
 
-    dynamicPricingService.updateCourtDynamicPricing(id, dynamicPricingDTO);
-    return ResponseEntity.ok().build();
+    try {
+      dynamicPricingService.updateDynamicPricing(id, pricingSettings);
+
+      Map<String, Object> response = new HashMap<>();
+      response.put("success", true);
+      response.put("message", "Dynamic pricing settings updated successfully");
+      response.put("courtId", id);
+
+      return ResponseEntity.ok(response);
+    } catch (Exception e) {
+      Map<String, Object> errorResponse = new HashMap<>();
+      errorResponse.put("success", false);
+      errorResponse.put("message", e.getMessage());
+      errorResponse.put("courtId", id);
+
+      return ResponseEntity.badRequest().body(errorResponse);
+    }
+  }
+
+  @GetMapping("/{id}/dynamic-pricing")
+  @PreAuthorize("hasAnyRole('CUSTOMER', 'VENUE_OWNER', 'ADMIN')")
+  @Operation(summary = "Get dynamic pricing settings", description = "Gets current dynamic pricing configuration for the court")
+  public ResponseEntity<Map<String, Object>> getDynamicPricingSettings(@PathVariable Long id) {
+    Map<String, Object> settings = dynamicPricingService.getDynamicPricingSettings(id);
+    return ResponseEntity.ok(settings);
   }
 
   @GetMapping("/{id}/slots")

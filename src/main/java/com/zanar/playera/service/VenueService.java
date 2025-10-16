@@ -60,14 +60,19 @@ public class VenueService {
         .orElseThrow(() -> new RuntimeException("Venue owner not found"));
 
     if (!owner.canAddVenue()) {
-      throw new RuntimeException("Venue owner is not verified or active");
+      throw new RuntimeException("Venue owner is not active or already has a venue");
+    }
+
+    // Check if owner already has a venue
+    if (owner.hasVenue()) {
+      throw new RuntimeException("Venue owner can only have one venue");
     }
 
     Venue venue = VenueMapper.toVenueEntity(venueRequestDTO, owner);
     venue.setStatus(Venue.VenueStatus.ACTIVE);
 
     Venue savedVenue = venueRepository.save(venue);
-    owner.addVenue();
+    owner.setVenue(savedVenue);
     venueOwnerRepository.save(owner);
 
     return VenueMapper.toVenueResponseDTO(savedVenue);
@@ -80,6 +85,31 @@ public class VenueService {
     Venue venue = venueRepository.findById(id)
         .orElseThrow(() -> new RuntimeException("Venue not found"));
     return VenueMapper.toVenueResponseDTO(venue);
+  }
+
+  /**
+   * Add images to venue
+   */
+  public void addImagesToVenue(Long venueId, String[] imageUrls) {
+    Venue venue = venueRepository.findById(venueId)
+        .orElseThrow(() -> new RuntimeException("Venue not found"));
+
+    for (String imageUrl : imageUrls) {
+      venue.getImages().add(imageUrl);
+    }
+
+    venueRepository.save(venue);
+  }
+
+  /**
+   * Remove image from venue
+   */
+  public void removeImageFromVenue(Long venueId, String imageUrl) {
+    Venue venue = venueRepository.findById(venueId)
+        .orElseThrow(() -> new RuntimeException("Venue not found"));
+
+    venue.getImages().remove(imageUrl);
+    venueRepository.save(venue);
   }
 
   /**
@@ -99,11 +129,11 @@ public class VenueService {
         .filter(venue -> venueType == null || venue.getVenueType().name().equals(venueType))
         .filter(venue -> minPrice == null || venue.getBasePrice() >= minPrice)
         .filter(venue -> maxPrice == null || venue.getBasePrice() <= maxPrice)
-        .filter(venue -> hasParking == null || venue.isParkingAvailable() == hasParking)
-        .filter(venue -> hasFood == null || venue.isFoodAvailable() == hasFood)
-        .filter(venue -> hasChangingRooms == null || venue.isChangingRoomsAvailable() == hasChangingRooms)
-        .filter(venue -> hasShower == null || venue.isShowerAvailable() == hasShower)
-        .filter(venue -> hasWifi == null || venue.isWifiAvailable() == hasWifi)
+        .filter(venue -> hasParking == null || venue.getParkingAvailable() == hasParking)
+        .filter(venue -> hasFood == null || venue.getFoodAvailable() == hasFood)
+        .filter(venue -> hasChangingRooms == null || venue.getChangingRoomsAvailable() == hasChangingRooms)
+        .filter(venue -> hasShower == null || venue.getShowerAvailable() == hasShower)
+        .filter(venue -> hasWifi == null || venue.getWifiAvailable() == hasWifi)
         .filter(venue -> venue.getStatus() == Venue.VenueStatus.ACTIVE)
         .collect(Collectors.toList());
 
@@ -170,6 +200,18 @@ public class VenueService {
   }
 
   /**
+   * Get venue by owner ID (each owner can have only one venue)
+   * Returns null if no venue exists (which is normal for new venue owners)
+   */
+  public VenueResponseDTO getVenueByOwner(Long ownerId) {
+    return venueRepository.findAll().stream()
+        .filter(v -> v.getVenueOwner() != null && v.getVenueOwner().getUserId().equals(ownerId))
+        .findFirst()
+        .map(VenueMapper::toVenueResponseDTO)
+        .orElse(null); // Return null instead of throwing exception
+  }
+
+  /**
    * Update venue
    */
   public VenueResponseDTO updateVenue(Long id, VenueRequestDTO venueRequestDTO) {
@@ -187,6 +229,48 @@ public class VenueService {
       venue.setDescription(venueRequestDTO.getDescription());
     if (venueRequestDTO.getContactNo() != null)
       venue.setContactNo(venueRequestDTO.getContactNo());
+    if (venueRequestDTO.getEmail() != null)
+      venue.setEmail(venueRequestDTO.getEmail());
+    if (venueRequestDTO.getWebsite() != null)
+      venue.setWebsite(venueRequestDTO.getWebsite());
+    if (venueRequestDTO.getLatitude() != null)
+      venue.setLatitude(Double.parseDouble(venueRequestDTO.getLatitude()));
+    if (venueRequestDTO.getLongitude() != null)
+      venue.setLongitude(Double.parseDouble(venueRequestDTO.getLongitude()));
+    if (venueRequestDTO.getVenueType() != null)
+      venue.setVenueType(Venue.VenueType.valueOf(venueRequestDTO.getVenueType()));
+    if (venueRequestDTO.getMaxCapacity() != null)
+      venue.setMaxCapacity(venueRequestDTO.getMaxCapacity());
+    if (venueRequestDTO.getStatus() != null)
+      venue.setStatus(Venue.VenueStatus.valueOf(venueRequestDTO.getStatus()));
+    if (venueRequestDTO.getOpeningHours() != null)
+      venue.setOpeningHours(venueRequestDTO.getOpeningHours());
+    if (venueRequestDTO.getBasePrice() != null)
+      venue.setBasePrice(venueRequestDTO.getBasePrice().doubleValue());
+
+    // Update amenities
+    if (venueRequestDTO.getParkingAvailable() != null)
+      venue.setParkingAvailable(venueRequestDTO.getParkingAvailable());
+    if (venueRequestDTO.getFoodAvailable() != null)
+      venue.setFoodAvailable(venueRequestDTO.getFoodAvailable());
+    if (venueRequestDTO.getChangingRoomsAvailable() != null)
+      venue.setChangingRoomsAvailable(venueRequestDTO.getChangingRoomsAvailable());
+    if (venueRequestDTO.getShowerAvailable() != null)
+      venue.setShowerAvailable(venueRequestDTO.getShowerAvailable());
+    if (venueRequestDTO.getWifiAvailable() != null)
+      venue.setWifiAvailable(venueRequestDTO.getWifiAvailable());
+
+    // Update policies
+    if (venueRequestDTO.getCancellationPolicy() != null)
+      venue.setCancellationPolicy(venueRequestDTO.getCancellationPolicy());
+    if (venueRequestDTO.getRefundPolicy() != null)
+      venue.setRefundPolicy(venueRequestDTO.getRefundPolicy());
+
+    // Update lists
+    if (venueRequestDTO.getImages() != null)
+      venue.setImages(venueRequestDTO.getImages());
+    if (venueRequestDTO.getAmenities() != null)
+      venue.setAmenities(venueRequestDTO.getAmenities());
 
     Venue updatedVenue = venueRepository.save(venue);
 
@@ -332,7 +416,7 @@ public class VenueService {
 
     Map<String, Object> pricing = new HashMap<>();
     pricing.put("basePrice", venue.getBasePrice());
-    pricing.put("dynamicPricingEnabled", venue.isDynamicPricingEnabled());
+    pricing.put("dynamicPricingEnabled", venue.getDynamicPricingEnabled());
     pricing.put("peakHourMultiplier", venue.getPeakHourMultiplier());
     pricing.put("offPeakMultiplier", venue.getOffPeakMultiplier());
     pricing.put("weekendMultiplier", venue.getWeekendMultiplier());

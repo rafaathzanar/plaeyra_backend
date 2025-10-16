@@ -14,7 +14,7 @@ import java.util.List;
 @AllArgsConstructor
 public class Customer extends User {
 
-    private int loyaltyPoints = 0;
+    private Integer loyaltyPoints = 0;
 
     @Enumerated(EnumType.STRING)
     private LoyaltyTier loyaltyTier = LoyaltyTier.BRONZE;
@@ -25,13 +25,13 @@ public class Customer extends User {
 
     private String preferredLocation;
 
-    private double totalSpent = 0.0;
+    private Double totalSpent = 0.0;
 
-    private int totalBookings = 0;
+    private Integer totalBookings = 0;
 
     private LocalDateTime lastBookingAt;
 
-    private boolean marketingConsent = false;
+    private Boolean marketingConsent = false;
 
     private String emergencyContact;
 

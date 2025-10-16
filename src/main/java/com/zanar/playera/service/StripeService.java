@@ -3,16 +3,11 @@ package com.zanar.playera.service;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
-import com.stripe.model.Refund;
-import com.stripe.model.Customer;
-import com.stripe.model.PaymentMethod;
 import com.stripe.param.PaymentIntentCreateParams;
-import com.stripe.param.RefundCreateParams;
-import com.stripe.param.CustomerCreateParams;
-import com.stripe.param.PaymentMethodAttachParams;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,68 +15,63 @@ import java.util.Map;
 public class StripeService {
 
   @Value("${stripe.secret-key}")
-  private String stripeSecretKey;
+  private String secretKey;
+
+  @Value("${stripe.publishable-key}")
+  private String publishableKey;
 
   @Value("${stripe.webhook-secret}")
   private String webhookSecret;
 
-  public StripeService(@Value("${stripe.secret-key}") String stripeSecretKey) {
-    Stripe.apiKey = stripeSecretKey;
+  @PostConstruct
+  public void init() {
+    Stripe.apiKey = secretKey;
   }
 
   /**
-   * Create a payment intent for a booking
+   * Create a PaymentIntent for the given amount
    */
   public PaymentIntent createPaymentIntent(Long amount, String currency, String description, String customerEmail)
       throws StripeException {
+    // Convert amount to cents (Stripe expects amounts in smallest currency unit)
+    long amountInCents = amount * 100;
+
+    System.out.println("StripeService: Creating payment intent");
+    System.out.println("Original amount: " + amount + " " + currency);
+    System.out.println("Amount in cents: " + amountInCents);
+
     PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
-        .setAmount(amount)
-        .setCurrency(currency)
+        .setAmount(amountInCents)
+        .setCurrency(currency.toLowerCase())
         .setDescription(description)
         .setReceiptEmail(customerEmail)
         .setAutomaticPaymentMethods(
             PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
                 .setEnabled(true)
                 .build())
+        .putMetadata("source", "playera_booking_app")
         .build();
 
     return PaymentIntent.create(params);
   }
 
   /**
-   * Create a customer in Stripe
+   * Retrieve a PaymentIntent by ID
    */
-  public Customer createCustomer(String email, String name, String phone) throws StripeException {
-    CustomerCreateParams params = CustomerCreateParams.builder()
-        .setEmail(email)
-        .setName(name)
-        .setPhone(phone)
-        .build();
-
-    return Customer.create(params);
-  }
-
-  /**
-   * Attach a payment method to a customer
-   */
-  public void attachPaymentMethodToCustomer(String customerId, String paymentMethodId) throws StripeException {
-    PaymentMethod paymentMethod = PaymentMethod.retrieve(paymentMethodId);
-    PaymentMethodAttachParams attachParams = PaymentMethodAttachParams.builder()
-        .setCustomer(customerId)
-        .build();
-
-    paymentMethod.attach(attachParams);
-  }
-
-  /**
-   * Confirm a payment intent
-   */
-  public PaymentIntent confirmPaymentIntent(String paymentIntentId) throws StripeException {
+  public PaymentIntent retrievePaymentIntent(String paymentIntentId) throws StripeException {
     return PaymentIntent.retrieve(paymentIntentId);
   }
 
   /**
-   * Cancel a payment intent
+   * Confirm a PaymentIntent
+   */
+  public PaymentIntent confirmPaymentIntent(String paymentIntentId) throws StripeException {
+    PaymentIntent paymentIntent = PaymentIntent.retrieve(paymentIntentId);
+    return paymentIntent.confirm();
+  }
+
+  /**
+   * Cancel a PaymentIntent
    */
   public PaymentIntent cancelPaymentIntent(String paymentIntentId) throws StripeException {
     PaymentIntent paymentIntent = PaymentIntent.retrieve(paymentIntentId);
@@ -89,159 +79,16 @@ public class StripeService {
   }
 
   /**
-   * Process a refund
+   * Get publishable key for frontend
    */
-  public Refund processRefund(String paymentIntentId, Long amount, String reason) throws StripeException {
-    RefundCreateParams params = RefundCreateParams.builder()
-        .setPaymentIntent(paymentIntentId)
-        .setAmount(amount)
-        .setReason(RefundCreateParams.Reason.REQUESTED_BY_CUSTOMER)
-        .setMetadata(Map.of("reason", reason))
-        .build();
-
-    return Refund.create(params);
+  public String getPublishableKey() {
+    return publishableKey;
   }
 
   /**
-   * Process a partial refund
+   * Get webhook secret for webhook verification
    */
-  public Refund processPartialRefund(String paymentIntentId, Long amount, String reason) throws StripeException {
-    RefundCreateParams params = RefundCreateParams.builder()
-        .setPaymentIntent(paymentIntentId)
-        .setAmount(amount)
-        .setReason(RefundCreateParams.Reason.REQUESTED_BY_CUSTOMER)
-        .setMetadata(Map.of("reason", reason))
-        .build();
-
-    return Refund.create(params);
-  }
-
-  /**
-   * Get payment intent details
-   */
-  public PaymentIntent getPaymentIntent(String paymentIntentId) throws StripeException {
-    return PaymentIntent.retrieve(paymentIntentId);
-  }
-
-  /**
-   * Get customer details
-   */
-  public Customer getCustomer(String customerId) throws StripeException {
-    return Customer.retrieve(customerId);
-  }
-
-  /**
-   * Update customer information
-   */
-  public Customer updateCustomer(String customerId, String name, String phone) throws StripeException {
-    Customer customer = Customer.retrieve(customerId);
-
-    Map<String, Object> params = new HashMap<>();
-    params.put("name", name);
-    params.put("phone", phone);
-
-    return customer.update(params);
-  }
-
-  /**
-   * Delete a customer
-   */
-  public void deleteCustomer(String customerId) throws StripeException {
-    Customer customer = Customer.retrieve(customerId);
-    customer.delete();
-  }
-
-  /**
-   * Get payment method details
-   */
-  public PaymentMethod getPaymentMethod(String paymentMethodId) throws StripeException {
-    return PaymentMethod.retrieve(paymentMethodId);
-  }
-
-  /**
-   * Detach a payment method
-   */
-  public void detachPaymentMethod(String paymentMethodId) throws StripeException {
-    PaymentMethod paymentMethod = PaymentMethod.retrieve(paymentMethodId);
-    paymentMethod.detach();
-  }
-
-  /**
-   * List customer payment methods
-   */
-  public com.stripe.model.PaymentMethodCollection listCustomerPaymentMethods(String customerId) throws StripeException {
-    Map<String, Object> params = new HashMap<>();
-    params.put("customer", customerId);
-    params.put("type", "card");
-
-    return PaymentMethod.list(params);
-  }
-
-  /**
-   * Create a setup intent for saving payment methods
-   */
-  public com.stripe.model.SetupIntent createSetupIntent(String customerId) throws StripeException {
-    com.stripe.param.SetupIntentCreateParams params = com.stripe.param.SetupIntentCreateParams.builder()
-        .setCustomer(customerId)
-        .build();
-
-    return com.stripe.model.SetupIntent.create(params);
-  }
-
-  /**
-   * Validate webhook signature
-   */
-  public boolean validateWebhookSignature(String payload, String signature) {
-    try {
-      com.stripe.net.Webhook.Signature.verifyHeader(
-          payload, signature, webhookSecret, 300);
-      return true;
-    } catch (Exception e) {
-      return false;
-    }
-  }
-
-  /**
-   * Handle successful payment webhook
-   */
-  public void handleSuccessfulPayment(String paymentIntentId) {
-    // This would integrate with your payment service
-    // to update booking status, send notifications, etc.
-    System.out.println("Payment successful: " + paymentIntentId);
-  }
-
-  /**
-   * Handle failed payment webhook
-   */
-  public void handleFailedPayment(String paymentIntentId, String failureReason) {
-    // This would integrate with your payment service
-    // to handle failed payments, send notifications, etc.
-    System.out.println("Payment failed: " + paymentIntentId + " - " + failureReason);
-  }
-
-  /**
-   * Handle refund webhook
-   */
-  public void handleRefund(String refundId, String paymentIntentId, Long amount) {
-    // This would integrate with your payment service
-    // to handle refunds, update booking status, etc.
-    System.out.println("Refund processed: " + refundId + " for payment: " + paymentIntentId + " amount: " + amount);
-  }
-
-  /**
-   * Create a mock payment intent for testing purposes
-   * This method returns a mock client secret for development/testing
-   */
-  public String createMockPaymentIntent(int amount, String currency, String description) {
-    // Generate a mock client secret for testing
-    // In production, this would create an actual Stripe PaymentIntent
-    String mockClientSecret = "pi_mock_" + System.currentTimeMillis() + "_secret_" +
-        Math.random() * 1000000 + "_" + amount + "_" + currency;
-
-    System.out.println("Mock PaymentIntent created: " + mockClientSecret);
-    System.out.println("Amount: " + amount + " " + currency.toUpperCase());
-    System.out.println("Description: " + description);
-
-    return mockClientSecret;
+  public String getWebhookSecret() {
+    return webhookSecret;
   }
 }

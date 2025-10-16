@@ -33,16 +33,21 @@ public class AuthController {
   private com.zanar.playera.security.CustomUserDetailsService userDetailsService;
 
   @PostMapping("/register")
-  @Operation(summary = "User Registration", description = "Register a new user account with the system. Supports different user roles (CUSTOMER, VENUE_OWNER, ADMIN).")
+  @Operation(summary = "User Registration", description = "Register a new user account with the system. Returns user information and JWT token upon successful registration.")
   @ApiResponses(value = {
-      @ApiResponse(responseCode = "200", description = "User registered successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = UserResponseDTO.class), examples = @ExampleObject(name = "Customer Registration", value = """
+      @ApiResponse(responseCode = "200", description = "User registered successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = JwtResponseDTO.class), examples = @ExampleObject(name = "Customer Registration", value = """
           {
-            "userId": 1,
-            "name": "John Doe",
-            "email": "john.doe@example.com",
-            "phone": "+1234567890",
-            "role": "CUSTOMER",
-            "status": "ACTIVE"
+            "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            "user": {
+              "userId": 1,
+              "name": "John Doe",
+              "email": "john.doe@example.com",
+              "phone": "+1234567890",
+              "userType": "CUSTOMER",
+              "loyaltyPoints": 0
+            },
+            "refreshToken": "refresh_token_here",
+            "expiresIn": 86400000
           }
           """))),
       @ApiResponse(responseCode = "400", description = "Invalid input data or email already exists", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
@@ -52,7 +57,7 @@ public class AuthController {
           }
           """)))
   })
-  public ResponseEntity<UserResponseDTO> register(
+  public ResponseEntity<JwtResponseDTO> register(
       @Parameter(description = "User registration details", required = true, content = @Content(examples = @ExampleObject(name = "Customer Registration", value = """
           {
             "name": "John Doe",
@@ -63,8 +68,10 @@ public class AuthController {
             "userType": "CUSTOMER"
           }
           """))) @Valid @RequestBody UserRegistrationDTO dto) {
-    UserResponseDTO response = userService.registerUser(dto);
-    return ResponseEntity.ok(response);
+    UserResponseDTO user = userService.registerUser(dto);
+    UserDetails userDetails = userDetailsService.loadUserByUsername(dto.getEmail());
+    String token = jwtUtil.generateToken(userDetails);
+    return ResponseEntity.ok(new JwtResponseDTO(token, user));
   }
 
   @PostMapping("/login")
@@ -136,6 +143,33 @@ public class AuthController {
   public ResponseEntity<Void> logout() {
     // For JWT, logout is handled client-side. This endpoint is for completeness.
     return ResponseEntity.ok().build();
+  }
+
+  @GetMapping("/me")
+  @Operation(summary = "Get Current User", description = "Get information about the currently authenticated user")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Current user information retrieved successfully"),
+      @ApiResponse(responseCode = "401", description = "User not authenticated")
+  })
+  @SecurityRequirement(name = "Bearer Authentication")
+  public ResponseEntity<UserResponseDTO> getCurrentUser() {
+    // Get the current authenticated user from SecurityContext
+    org.springframework.security.core.Authentication authentication = org.springframework.security.core.context.SecurityContextHolder
+        .getContext().getAuthentication();
+
+    if (authentication != null && authentication.isAuthenticated()) {
+      String email = authentication.getName();
+      UserResponseDTO user = userService.getUserByEmail(email);
+      return ResponseEntity.ok(user);
+    } else {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+  }
+
+  @GetMapping("/test")
+  @Operation(summary = "Test Endpoint", description = "Simple test endpoint to verify security configuration")
+  public ResponseEntity<String> test() {
+    return ResponseEntity.ok("Auth endpoint is accessible!");
   }
 
   public static class JwtResponseDTO {

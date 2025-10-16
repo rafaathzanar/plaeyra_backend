@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -40,8 +41,7 @@ public class CourtService {
   @Autowired
   private BookingRepository bookingRepository;
 
-  @Autowired
-  private CourtMapper courtMapper;
+  // CourtMapper is a static utility class, no need for @Autowired
 
   /**
    * Create a new court
@@ -66,13 +66,38 @@ public class CourtService {
   public CourtResponseDTO getCourtById(Long id) {
     Court court = courtRepository.findById(id)
         .orElseThrow(() -> new RuntimeException("Court not found"));
-    return courtMapper.toCourtResponseDTO(court);
+    return CourtMapper.toCourtResponseDTO(court);
+  }
+
+  /**
+   * Add images to court
+   */
+  public void addImagesToCourt(Long courtId, String[] imageUrls) {
+    Court court = courtRepository.findById(courtId)
+        .orElseThrow(() -> new RuntimeException("Court not found"));
+
+    for (String imageUrl : imageUrls) {
+      court.getImages().add(imageUrl);
+    }
+
+    courtRepository.save(court);
+  }
+
+  /**
+   * Remove image from court
+   */
+  public void removeImageFromCourt(Long courtId, String imageUrl) {
+    Court court = courtRepository.findById(courtId)
+        .orElseThrow(() -> new RuntimeException("Court not found"));
+
+    court.getImages().remove(imageUrl);
+    courtRepository.save(court);
   }
 
   /**
    * Get all courts with filtering and pagination
    */
-  public Page<CourtResponseDTO> getAllCourts(Long venueId, String sportType, String surfaceType,
+  public Page<CourtResponseDTO> getAllCourts(Long venueId, String sportType,
       Boolean isIndoor, Boolean isLighted, Boolean isAirConditioned,
       Double minPrice, Double maxPrice, String status, Pageable pageable) {
 
@@ -81,13 +106,13 @@ public class CourtService {
     // Apply filters
     List<Court> filteredCourts = allCourts.stream()
         .filter(court -> venueId == null || court.getVenue().getVenueId().equals(venueId))
-        .filter(court -> sportType == null || court.getType().equals(sportType))
-        .filter(court -> surfaceType == null || court.getSurfaceType().equals(surfaceType))
-        .filter(court -> isIndoor == null || court.isIndoor() == isIndoor)
-        .filter(court -> isLighted == null || court.isLighted() == isLighted)
-        .filter(court -> isAirConditioned == null || court.isAirConditioned() == isAirConditioned)
-        .filter(court -> minPrice == null || court.getPricePerHour() >= minPrice)
-        .filter(court -> maxPrice == null || court.getPricePerHour() <= maxPrice)
+        .filter(court -> sportType == null || court.getType().name().equals(sportType))
+
+        .filter(court -> isIndoor == null || court.getIsIndoor() == isIndoor)
+        .filter(court -> isLighted == null || court.getIsLighted() == isLighted)
+        .filter(court -> isAirConditioned == null || court.getIsAirConditioned() == isAirConditioned)
+        .filter(court -> minPrice == null || court.getPricePerHour().compareTo(BigDecimal.valueOf(minPrice)) >= 0)
+        .filter(court -> maxPrice == null || court.getPricePerHour().compareTo(BigDecimal.valueOf(maxPrice)) <= 0)
         .filter(court -> status == null || court.getStatus().name().equals(status))
         .filter(court -> court.getStatus() != Court.CourtStatus.DELETED)
         .collect(Collectors.toList());
@@ -131,11 +156,11 @@ public class CourtService {
     return allCourts.stream()
         .filter(court -> court.getStatus() != Court.CourtStatus.DELETED)
         .filter(court -> venueId == null || court.getVenue().getVenueId().equals(venueId))
-        .filter(court -> sportType == null || court.getType().equals(sportType))
+        .filter(court -> sportType == null || court.getType().name().equals(sportType))
         .filter(court -> query == null ||
             court.getCourtName().toLowerCase().contains(query.toLowerCase()) ||
             court.getDescription().toLowerCase().contains(query.toLowerCase()) ||
-            court.getType().toLowerCase().contains(query.toLowerCase()))
+            court.getType().name().toLowerCase().contains(query.toLowerCase()))
         .map(CourtMapper::toCourtResponseDTO)
         .collect(Collectors.toList());
   }
@@ -150,7 +175,7 @@ public class CourtService {
     return allCourts.stream()
         .filter(court -> court.getStatus() == Court.CourtStatus.ACTIVE)
         .filter(court -> venueId == null || court.getVenue().getVenueId().equals(venueId))
-        .filter(court -> sportType == null || court.getType().equals(sportType))
+        .filter(court -> sportType == null || court.getType().name().equals(sportType))
         .filter(court -> court.isAvailable(date.getDayOfWeek(), startTime))
         .filter(court -> !court.isUnderMaintenance(startTime))
         .map(CourtMapper::toCourtResponseDTO)
@@ -168,11 +193,59 @@ public class CourtService {
     if (courtRequestDTO.getCourtName() != null)
       court.setCourtName(courtRequestDTO.getCourtName());
     if (courtRequestDTO.getType() != null)
-      court.setType(courtRequestDTO.getType());
+      court.setType(Court.CourtType.valueOf(courtRequestDTO.getType().toUpperCase()));
     if (courtRequestDTO.getCapacity() > 0)
       court.setCapacity(courtRequestDTO.getCapacity());
     if (courtRequestDTO.getPricePerHour() > 0)
-      court.setPricePerHour(courtRequestDTO.getPricePerHour());
+      court.setPricePerHour(BigDecimal.valueOf(courtRequestDTO.getPricePerHour()));
+
+    // Update additional fields if provided
+    if (courtRequestDTO.getDescription() != null)
+      court.setDescription(courtRequestDTO.getDescription());
+    if (courtRequestDTO.getIsIndoor() != null)
+      court.setIsIndoor(courtRequestDTO.getIsIndoor());
+    if (courtRequestDTO.getIsLighted() != null)
+      court.setIsLighted(courtRequestDTO.getIsLighted());
+    if (courtRequestDTO.getIsAirConditioned() != null)
+      court.setIsAirConditioned(courtRequestDTO.getIsAirConditioned());
+    if (courtRequestDTO.getMinBookingDuration() != null)
+      court.setMinBookingDuration(courtRequestDTO.getMinBookingDuration());
+    if (courtRequestDTO.getMaxBookingDuration() != null)
+      court.setMaxBookingDuration(courtRequestDTO.getMaxBookingDuration());
+    if (courtRequestDTO.getOpeningTime() != null)
+      court.setOpeningTime(courtRequestDTO.getOpeningTime());
+    if (courtRequestDTO.getClosingTime() != null)
+      court.setClosingTime(courtRequestDTO.getClosingTime());
+    if (courtRequestDTO.getSlotDurationMinutes() != null)
+      court.setSlotDurationMinutes(courtRequestDTO.getSlotDurationMinutes());
+    if (courtRequestDTO.getIsActiveOnWeekends() != null)
+      court.setIsActiveOnWeekends(courtRequestDTO.getIsActiveOnWeekends());
+    if (courtRequestDTO.getIsActiveOnHolidays() != null)
+      court.setIsActiveOnHolidays(courtRequestDTO.getIsActiveOnHolidays());
+    if (courtRequestDTO.getHasBreakTime() != null)
+      court.setHasBreakTime(courtRequestDTO.getHasBreakTime());
+    if (courtRequestDTO.getBreakStartTime() != null)
+      court.setBreakStartTime(courtRequestDTO.getBreakStartTime());
+    if (courtRequestDTO.getBreakEndTime() != null)
+      court.setBreakEndTime(courtRequestDTO.getBreakEndTime());
+    if (courtRequestDTO.getDynamicPricingEnabled() != null)
+      court.setDynamicPricingEnabled(courtRequestDTO.getDynamicPricingEnabled());
+    if (courtRequestDTO.getPeakHourStart() != null)
+      court.setPeakHourStart(courtRequestDTO.getPeakHourStart());
+    if (courtRequestDTO.getPeakHourEnd() != null)
+      court.setPeakHourEnd(courtRequestDTO.getPeakHourEnd());
+    if (courtRequestDTO.getPeakHourMultiplier() != null)
+      court.setPeakHourMultiplier(courtRequestDTO.getPeakHourMultiplier());
+    if (courtRequestDTO.getOffPeakMultiplier() != null)
+      court.setOffPeakMultiplier(courtRequestDTO.getOffPeakMultiplier());
+    if (courtRequestDTO.getWeekendMultiplier() != null)
+      court.setWeekendMultiplier(courtRequestDTO.getWeekendMultiplier());
+    if (courtRequestDTO.getMaintenanceMode() != null)
+      court.setMaintenanceMode(courtRequestDTO.getMaintenanceMode());
+    if (courtRequestDTO.getMaintenanceStartTime() != null)
+      court.setMaintenanceStartTime(courtRequestDTO.getMaintenanceStartTime());
+    if (courtRequestDTO.getMaintenanceEndTime() != null)
+      court.setMaintenanceEndTime(courtRequestDTO.getMaintenanceEndTime());
 
     Court updatedCourt = courtRepository.save(court);
     return CourtMapper.toCourtResponseDTO(updatedCourt);
@@ -212,7 +285,6 @@ public class CourtService {
     court.setMaintenanceMode(true);
     court.setMaintenanceStartTime(startTime);
     court.setMaintenanceEndTime(endTime);
-    court.setMaintenanceNotes(notes);
     court.setStatus(Court.CourtStatus.MAINTENANCE);
 
     Court updatedCourt = courtRepository.save(court);
@@ -229,7 +301,6 @@ public class CourtService {
     court.setMaintenanceMode(false);
     court.setMaintenanceStartTime(null);
     court.setMaintenanceEndTime(null);
-    court.setMaintenanceNotes(null);
     court.setStatus(Court.CourtStatus.ACTIVE);
 
     Court updatedCourt = courtRepository.save(court);
@@ -274,11 +345,11 @@ public class CourtService {
     Map<String, Object> pricing = new HashMap<>();
     pricing.put("courtId", id);
     pricing.put("basePrice", court.getPricePerHour());
-    pricing.put("dynamicPricingEnabled", court.isDynamicPricingEnabled());
+    pricing.put("dynamicPricingEnabled", court.getDynamicPricingEnabled());
     pricing.put("peakHourMultiplier", court.getPeakHourMultiplier());
     pricing.put("offPeakMultiplier", court.getOffPeakMultiplier());
     pricing.put("weekendMultiplier", court.getWeekendMultiplier());
-    pricing.put("holidayMultiplier", court.getHolidayMultiplier());
+    // holidayMultiplier method not available in Court entity
     pricing.put("peakHourStart", court.getPeakHourStart());
     pricing.put("peakHourEnd", court.getPeakHourEnd());
 

@@ -1,293 +1,165 @@
 package com.zanar.playera.service;
 
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.firebase.FirebaseApp;
-import com.google.firebase.FirebaseOptions;
-import com.google.firebase.messaging.FirebaseMessaging;
-import com.google.firebase.messaging.Message;
-import com.google.firebase.messaging.Notification;
+import com.zanar.playera.dto.NotificationDTO;
+import com.zanar.playera.entity.Booking;
+import com.zanar.playera.entity.Notification;
+import com.zanar.playera.entity.User;
+import com.zanar.playera.repo.NotificationRepository;
+import com.zanar.playera.repo.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class NotificationService {
 
   @Autowired
-  private JavaMailSender emailSender;
+  private NotificationRepository notificationRepository;
 
-  @Value("${firebase.project-id}")
-  private String firebaseProjectId;
+  @Autowired
+  private UserRepository userRepository;
 
-  @Value("${firebase.private-key}")
-  private String firebasePrivateKey;
+  public void createBookingConfirmationNotification(Booking booking) {
+    User customer = booking.getCustomer();
+    if (customer == null)
+      return;
 
-  @Value("${firebase.client-email}")
-  private String firebaseClientEmail;
-
-  @Value("${spring.mail.username}")
-  private String fromEmail;
-
-  private FirebaseMessaging firebaseMessaging;
-
-  public NotificationService() {
-    // Firebase will be initialized lazily when first needed
-  }
-
-  /**
-   * Initialize Firebase for push notifications
-   */
-  private void initializeFirebase() {
-    try {
-      if (FirebaseApp.getApps().isEmpty()) {
-        FirebaseOptions options = FirebaseOptions.builder()
-            .setProjectId(firebaseProjectId)
-            .setCredentials(GoogleCredentials.fromStream(
-                new ByteArrayInputStream(firebasePrivateKey.getBytes())))
-            .build();
-
-        FirebaseApp.initializeApp(options);
-        this.firebaseMessaging = FirebaseMessaging.getInstance();
-      }
-    } catch (IOException e) {
-      System.err.println("Failed to initialize Firebase: " + e.getMessage());
+    // Get venue name from first booking court
+    String venueName = "Unknown Venue";
+    if (booking.getBookingCourts() != null && !booking.getBookingCourts().isEmpty()) {
+      venueName = booking.getBookingCourts().get(0).getCourt().getVenue().getName();
     }
+
+    Notification notification = new Notification();
+    notification.setUser(customer);
+    notification.setTitle("Booking Confirmed");
+    notification.setMessage(String.format("Your booking at %s has been confirmed for %s",
+        venueName,
+        booking.getBookingDate().format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))));
+    notification.setType(Notification.NotificationType.BOOKING_CONFIRMED);
+    notification.setRelatedEntityType("BOOKING");
+    notification.setRelatedEntityId(booking.getBookingId());
+
+    notificationRepository.save(notification);
   }
 
-  /**
-   * Get Firebase messaging instance, initializing if necessary
-   */
-  private FirebaseMessaging getFirebaseMessaging() {
-    if (firebaseMessaging == null) {
-      initializeFirebase();
+  public void createBookingReminderNotification(Booking booking) {
+    User customer = booking.getCustomer();
+    if (customer == null)
+      return;
+
+    // Get venue name from first booking court
+    String venueName = "Unknown Venue";
+    if (booking.getBookingCourts() != null && !booking.getBookingCourts().isEmpty()) {
+      venueName = booking.getBookingCourts().get(0).getCourt().getVenue().getName();
     }
-    return firebaseMessaging;
+
+    Notification notification = new Notification();
+    notification.setUser(customer);
+    notification.setTitle("Booking Reminder");
+    notification.setMessage(String.format("You have a booking today at %s. Don't forget!",
+        venueName));
+    notification.setType(Notification.NotificationType.BOOKING_REMINDER);
+    notification.setRelatedEntityType("BOOKING");
+    notification.setRelatedEntityId(booking.getBookingId());
+
+    notificationRepository.save(notification);
   }
 
-  /**
-   * Send push notification to a specific device
-   */
-  public CompletableFuture<String> sendPushNotification(String deviceToken, String title, String body,
-      Map<String, String> data) {
-    return CompletableFuture.supplyAsync(() -> {
-      try {
-        Message message = Message.builder()
-            .setToken(deviceToken)
-            .setNotification(Notification.builder()
-                .setTitle(title)
-                .setBody(body)
-                .build())
-            .putAllData(data)
-            .build();
+  public List<NotificationDTO> getUserNotifications(Long userId) {
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return getFirebaseMessaging().send(message);
-      } catch (Exception e) {
-        System.err.println("Failed to send push notification: " + e.getMessage());
-        return null;
-      }
-    });
+    List<Notification> notifications = notificationRepository.findActiveNotificationsByUser(user);
+
+    return notifications.stream()
+        .map(this::convertToDTO)
+        .collect(Collectors.toList());
   }
 
-  /**
-   * Send push notification to multiple devices
-   */
-  public CompletableFuture<Map<String, String>> sendPushNotificationToMultipleDevices(
-      List<String> deviceTokens, String title, String body, Map<String, String> data) {
+  public long getUnreadNotificationCount(Long userId) {
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new RuntimeException("User not found"));
 
-    return CompletableFuture.supplyAsync(() -> {
-      Map<String, String> results = new HashMap<>();
-
-      for (String token : deviceTokens) {
-        try {
-          String messageId = sendPushNotification(token, title, body, data).get();
-          results.put(token, messageId != null ? "SUCCESS" : "FAILED");
-        } catch (Exception e) {
-          results.put(token, "FAILED: " + e.getMessage());
-        }
-      }
-
-      return results;
-    });
+    return notificationRepository.countUnreadNotificationsByUser(user);
   }
 
-  /**
-   * Send email notification
-   */
-  public void sendEmail(String to, String subject, String body) {
-    SimpleMailMessage message = new SimpleMailMessage();
-    message.setFrom(fromEmail);
-    message.setTo(to);
-    message.setSubject(subject);
-    message.setText(body);
+  public void markAsRead(Long notificationId, Long userId) {
+    Notification notification = notificationRepository.findById(notificationId)
+        .orElseThrow(() -> new RuntimeException("Notification not found"));
 
-    emailSender.send(message);
+    if (!notification.getUser().getUserId().equals(userId)) {
+      throw new RuntimeException("Unauthorized access to notification");
+    }
+
+    notification.setStatus(Notification.NotificationStatus.READ);
+    notification.setReadAt(LocalDateTime.now());
+    notificationRepository.save(notification);
   }
 
-  /**
-   * Send booking confirmation notification
-   */
-  public void sendBookingConfirmation(String customerEmail, String customerName, String venueName,
-      String courtName, LocalDateTime bookingDate, String bookingReference) {
-    String subject = "Booking Confirmation - " + venueName;
-    String body = String.format(
-        "Dear %s,\n\n" +
-            "Your booking has been confirmed!\n\n" +
-            "Venue: %s\n" +
-            "Court: %s\n" +
-            "Date: %s\n" +
-            "Reference: %s\n\n" +
-            "Thank you for choosing PlayEra!\n\n" +
-            "Best regards,\nPlayEra Team",
-        customerName, venueName, courtName,
-        bookingDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
-        bookingReference);
+  public void deleteNotification(Long notificationId, Long userId) {
+    Notification notification = notificationRepository.findById(notificationId)
+        .orElseThrow(() -> new RuntimeException("Notification not found"));
 
-    sendEmail(customerEmail, subject, body);
+    if (!notification.getUser().getUserId().equals(userId)) {
+      throw new RuntimeException("Unauthorized access to notification");
+    }
 
-    // Send push notification if device token is available
-    // This would require storing device tokens in the customer entity
+    notification.setStatus(Notification.NotificationStatus.DELETED);
+    notificationRepository.save(notification);
   }
 
-  /**
-   * Send booking cancellation notification
-   */
-  public void sendBookingCancellation(String customerEmail, String customerName, String venueName,
-      String courtName, LocalDateTime bookingDate, String bookingReference) {
-    String subject = "Booking Cancellation - " + venueName;
-    String body = String.format(
-        "Dear %s,\n\n" +
-            "Your booking has been cancelled.\n\n" +
-            "Venue: %s\n" +
-            "Court: %s\n" +
-            "Date: %s\n" +
-            "Reference: %s\n\n" +
-            "If you have any questions, please contact our support team.\n\n" +
-            "Best regards,\nPlayEra Team",
-        customerName, venueName, courtName,
-        bookingDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
-        bookingReference);
+  private NotificationDTO convertToDTO(Notification notification) {
+    NotificationDTO dto = new NotificationDTO();
+    dto.setNotificationId(notification.getNotificationId());
+    dto.setTitle(notification.getTitle());
+    dto.setMessage(notification.getMessage());
+    dto.setType(notification.getType());
+    dto.setStatus(notification.getStatus());
+    dto.setRelatedEntityType(notification.getRelatedEntityType());
+    dto.setRelatedEntityId(notification.getRelatedEntityId());
+    dto.setScheduledFor(notification.getScheduledFor());
+    dto.setCreatedAt(notification.getCreatedAt());
+    dto.setReadAt(notification.getReadAt());
 
-    sendEmail(customerEmail, subject, body);
+    // Calculate time ago
+    LocalDateTime now = LocalDateTime.now();
+    long minutesAgo = ChronoUnit.MINUTES.between(notification.getCreatedAt(), now);
+    long hoursAgo = ChronoUnit.HOURS.between(notification.getCreatedAt(), now);
+    long daysAgo = ChronoUnit.DAYS.between(notification.getCreatedAt(), now);
+
+    if (minutesAgo < 60) {
+      dto.setTimeAgo(minutesAgo + "m ago");
+    } else if (hoursAgo < 24) {
+      dto.setTimeAgo(hoursAgo + "h ago");
+    } else {
+      dto.setTimeAgo(daysAgo + "d ago");
+    }
+
+    dto.setToday(notification.getCreatedAt().toLocalDate().equals(LocalDate.now()));
+    dto.setUnread(notification.getStatus() == Notification.NotificationStatus.UNREAD);
+
+    return dto;
   }
 
-  /**
-   * Send payment confirmation notification
-   */
-  public void sendPaymentConfirmation(String customerEmail, String customerName, double amount,
-      String currency, String bookingReference) {
-    String subject = "Payment Confirmation - PlayEra";
-    String body = String.format(
-        "Dear %s,\n\n" +
-            "Your payment has been processed successfully!\n\n" +
-            "Amount: %s %s\n" +
-            "Booking Reference: %s\n" +
-            "Date: %s\n\n" +
-            "Thank you for your payment!\n\n" +
-            "Best regards,\nPlayEra Team",
-        customerName, currency, amount, bookingReference,
-        LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
-
-    sendEmail(customerEmail, subject, body);
+  public void sendPaymentConfirmation(String customerEmail, String customerName, Double amount, String currency,
+      String bookingId) {
+    // This method is called by PaymentService but we don't need to implement it
+    // since we're using in-app notifications instead of email notifications
+    // The booking confirmation notification is already created in BookingService
   }
 
-  /**
-   * Send payment failure notification
-   */
-  public void sendPaymentFailure(String customerEmail, String customerName, String reason,
-      String bookingReference) {
-    String subject = "Payment Failed - PlayEra";
-    String body = String.format(
-        "Dear %s,\n\n" +
-            "Your payment has failed.\n\n" +
-            "Reason: %s\n" +
-            "Booking Reference: %s\n\n" +
-            "Please try again or contact our support team for assistance.\n\n" +
-            "Best regards,\nPlayEra Team",
-        customerName, reason, bookingReference);
-
-    sendEmail(customerEmail, subject, body);
-  }
-
-  /**
-   * Send reminder notification
-   */
-  public void sendBookingReminder(String customerEmail, String customerName, String venueName,
-      String courtName, LocalDateTime bookingDate, String bookingReference) {
-    String subject = "Booking Reminder - " + venueName;
-    String body = String.format(
-        "Dear %s,\n\n" +
-            "This is a friendly reminder about your upcoming booking.\n\n" +
-            "Venue: %s\n" +
-            "Court: %s\n" +
-            "Date: %s\n" +
-            "Reference: %s\n\n" +
-            "We look forward to seeing you!\n\n" +
-            "Best regards,\nPlayEra Team",
-        customerName, venueName, courtName,
-        bookingDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
-        bookingReference);
-
-    sendEmail(customerEmail, subject, body);
-  }
-
-  /**
-   * Send loyalty points notification
-   */
-  public void sendLoyaltyPointsNotification(String customerEmail, String customerName, int pointsEarned,
-      int totalPoints, String tier) {
-    String subject = "Loyalty Points Earned - PlayEra";
-    String body = String.format(
-        "Dear %s,\n\n" +
-            "Congratulations! You've earned %d loyalty points!\n\n" +
-            "Points Earned: %d\n" +
-            "Total Points: %d\n" +
-            "Current Tier: %s\n\n" +
-            "Keep booking to earn more points and unlock exclusive benefits!\n\n" +
-            "Best regards,\nPlayEra Team",
-        customerName, pointsEarned, pointsEarned, totalPoints, tier);
-
-    sendEmail(customerEmail, subject, body);
-  }
-
-  /**
-   * Send tier upgrade notification
-   */
-  public void sendTierUpgradeNotification(String customerEmail, String customerName, String newTier,
-      List<String> benefits) {
-    String subject = "Tier Upgrade - PlayEra";
-    String body = String.format(
-        "Dear %s,\n\n" +
-            "Congratulations! You've been upgraded to %s tier!\n\n" +
-            "New Benefits:\n%s\n\n" +
-            "Enjoy your exclusive benefits!\n\n" +
-            "Best regards,\nPlayEra Team",
-        customerName, newTier, String.join("\n", benefits));
-
-    sendEmail(customerEmail, subject, body);
-  }
-
-  /**
-   * Send venue owner notification
-   */
-  public void sendVenueOwnerNotification(String ownerEmail, String ownerName, String notificationType,
-      String message) {
-    String subject = "Venue Owner Notification - " + notificationType;
-    String body = String.format(
-        "Dear %s,\n\n" +
-            "%s\n\n" +
-            "Best regards,\nPlayEra Team",
-        ownerName, message);
-
-    sendEmail(ownerEmail, subject, body);
+  public void sendPaymentFailure(String customerEmail, String customerName, String errorMessage, String bookingId) {
+    // This method is called by PaymentService but we don't need to implement it
+    // since we're using in-app notifications instead of email notifications
+    // Payment failure notifications can be added here if needed
   }
 }
