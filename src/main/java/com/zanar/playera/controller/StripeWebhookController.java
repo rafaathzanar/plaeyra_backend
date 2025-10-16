@@ -56,6 +56,15 @@ public class StripeWebhookController {
         case "payment_intent.canceled":
           handlePaymentIntentCanceled(event);
           break;
+        case "charge.dispute.created":
+          handleChargeDisputeCreated(event);
+          break;
+        case "refund.created":
+          handleRefundCreated(event);
+          break;
+        case "refund.updated":
+          handleRefundUpdated(event);
+          break;
         default:
           System.out.println("Unhandled event type: " + event.getType());
       }
@@ -97,6 +106,38 @@ public class StripeWebhookController {
     if (paymentIntent != null) {
       System.out.println("Payment canceled: " + paymentIntent.getId());
       // Handle canceled payment
+    }
+  }
+
+  private void handleChargeDisputeCreated(Event event) {
+    com.stripe.model.Dispute dispute = (com.stripe.model.Dispute) event.getDataObjectDeserializer().getObject()
+        .orElse(null);
+
+    if (dispute != null) {
+      System.out.println("Charge dispute created: " + dispute.getId());
+      // Handle dispute - notify venue owner, investigate, etc.
+    }
+  }
+
+  private void handleRefundCreated(Event event) {
+    com.stripe.model.Refund refund = (com.stripe.model.Refund) event.getDataObjectDeserializer().getObject()
+        .orElse(null);
+
+    if (refund != null) {
+      System.out.println("Refund created: " + refund.getId());
+      // Refund was successfully created in Stripe
+      // Update our database if needed
+    }
+  }
+
+  private void handleRefundUpdated(Event event) {
+    com.stripe.model.Refund refund = (com.stripe.model.Refund) event.getDataObjectDeserializer().getObject()
+        .orElse(null);
+
+    if (refund != null) {
+      System.out.println("Refund updated: " + refund.getId());
+      // Refund status was updated (e.g., succeeded, failed)
+      // Update our database if needed
     }
   }
 }

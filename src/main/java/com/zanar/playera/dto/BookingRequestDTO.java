@@ -28,6 +28,10 @@ public class BookingRequestDTO {
 
     private String specialRequests; // Optional special requests from customer
 
+    private Long paymentId; // Optional payment ID for existing payments
+
+    private Double totalCost; // Total cost calculated by frontend (includes dynamic pricing)
+
     private List<CourtBookingDTO> courtBookings;
     private List<EquipmentBookingDTO> equipmentBookings;
 

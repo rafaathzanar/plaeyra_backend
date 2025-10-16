@@ -3,8 +3,13 @@ package com.zanar.playera.controller;
 import com.zanar.playera.dto.BookingRequestDTO;
 import com.zanar.playera.dto.BookingResponseDTO;
 import com.zanar.playera.dto.BookingWithPaymentDTO;
+import com.zanar.playera.dto.PaymentRequestDTO;
+import com.zanar.playera.dto.PaymentResponseDTO;
 import com.zanar.playera.service.BookingService;
+import com.zanar.playera.service.PaymentService;
 import com.zanar.playera.service.StripeService;
+import com.zanar.playera.repo.CourtRepository;
+import com.zanar.playera.entity.Court;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +27,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import java.util.Map;
 
@@ -40,7 +47,13 @@ public class BookingController {
   private BookingService bookingService;
 
   @Autowired
+  private PaymentService paymentService;
+
+  @Autowired
   private StripeService stripeService;
+
+  @Autowired
+  private CourtRepository courtRepository;
 
   @GetMapping
   @Operation(summary = "Get all bookings", description = "Retrieve all bookings in the system. This is an admin function that requires appropriate permissions.")
@@ -175,9 +188,32 @@ public class BookingController {
       if (!"succeeded".equals(paymentIntent.getStatus())) {
         log.error("Payment verification failed. Payment intent {} has status: {}", dto.getPaymentIntentId(),
             paymentIntent.getStatus());
+
+        String errorMessage;
+        switch (paymentIntent.getStatus()) {
+          case "requires_payment_method":
+            errorMessage = "Payment failed. Please try again with a different payment method.";
+            break;
+          case "requires_confirmation":
+            errorMessage = "Payment requires confirmation. Please complete the payment process.";
+            break;
+          case "requires_action":
+            errorMessage = "Payment requires additional action. Please complete the authentication.";
+            break;
+          case "processing":
+            errorMessage = "Payment is still processing. Please wait and try again.";
+            break;
+          case "canceled":
+            errorMessage = "Payment was canceled. Please try again.";
+            break;
+          default:
+            errorMessage = "Payment verification failed. Payment status: " + paymentIntent.getStatus();
+        }
+
         return ResponseEntity.badRequest()
-            .body(Map.of("error", "Payment verification failed. Payment status: " + paymentIntent.getStatus(),
+            .body(Map.of("error", errorMessage,
                 "paymentIntentId", dto.getPaymentIntentId(),
+                "paymentStatus", paymentIntent.getStatus(),
                 "timestamp", java.time.LocalDateTime.now()));
       }
 
@@ -230,8 +266,70 @@ public class BookingController {
             .collect(java.util.stream.Collectors.toList()));
       }
 
-      // Create the booking
+      // Use total cost from frontend (includes dynamic pricing) or calculate as
+      // fallback
+      double totalCost = 0.0;
+      log.info("=== COST CALCULATION DEBUG ===");
+      log.info("Frontend total cost: {}", dto.getTotalCost());
+      log.info("Time slot ranges: {}", dto.getTimeSlotRanges());
+      log.info("Court bookings: {}", dto.getCourtBookings());
+      log.info("Duration: {}", dto.getDuration());
+
+      if (dto.getTotalCost() != null && dto.getTotalCost() > 0) {
+        totalCost = dto.getTotalCost();
+        log.info("Using frontend calculated total cost: {}", totalCost);
+      } else {
+        log.info("Frontend total cost not provided, calculating from backend");
+        if (dto.getTimeSlotRanges() != null && !dto.getTimeSlotRanges().isEmpty()) {
+          log.info("Using time slot ranges for cost calculation");
+          for (BookingWithPaymentDTO.TimeSlotRangeDTO range : dto.getTimeSlotRanges()) {
+            if (!dto.getCourtBookings().isEmpty()) {
+              Long courtId = dto.getCourtBookings().get(0).getCourtId();
+              Court court = courtRepository.findById(courtId)
+                  .orElseThrow(() -> new RuntimeException("Court not found: " + courtId));
+              double rangeCost = court.getPricePerHour().doubleValue() * range.getDuration();
+              totalCost += rangeCost;
+              log.info("Range: {} - {}, Duration: {}, Base Price: {}, Range Cost: {}",
+                  range.getStartTime(), range.getEndTime(), range.getDuration(),
+                  court.getPricePerHour(), rangeCost);
+            }
+          }
+        } else {
+          log.info("Using fallback calculation for continuous bookings");
+          // Fallback calculation for continuous bookings
+          if (!dto.getCourtBookings().isEmpty()) {
+            Long courtId = dto.getCourtBookings().get(0).getCourtId();
+            Court court = courtRepository.findById(courtId)
+                .orElseThrow(() -> new RuntimeException("Court not found: " + courtId));
+            totalCost = court.getPricePerHour().doubleValue() * dto.getDuration();
+            log.info("Court ID: {}, Base Price: {}, Duration: {}, Total Cost: {}",
+                courtId, court.getPricePerHour(), dto.getDuration(), totalCost);
+          }
+        }
+      }
+
+      log.info("Final total cost: {}", totalCost);
+      log.info("=== END COST CALCULATION DEBUG ===");
+
+      // Set the calculated total cost in the booking request
+      bookingRequest.setTotalCost(totalCost);
+
+      // Create payment first
+      PaymentRequestDTO paymentRequest = new PaymentRequestDTO();
+      paymentRequest.setAmount(totalCost);
+      paymentRequest.setPaymentMethod("CARD");
+      paymentRequest.setStatus("SUCCEEDED"); // Since Stripe already verified it succeeded
+      paymentRequest.setTransactionId(dto.getPaymentIntentId());
+
+      PaymentResponseDTO createdPayment = paymentService.createPaymentFromIntent(paymentRequest, dto.getCustomerId());
+      log.info("Payment created with ID: {} for intent: {}", createdPayment.getPaymentId(), dto.getPaymentIntentId());
+
+      // Create the booking with the payment
+      bookingRequest.setPaymentId(createdPayment.getPaymentId());
       BookingResponseDTO createdBooking = bookingService.createBooking(bookingRequest);
+
+      log.info("Booking created successfully with ID: {} and payment ID: {}",
+          createdBooking.getBookingId(), createdPayment.getPaymentId());
 
       log.info("Booking created successfully with ID: {} for payment intent: {}",
           createdBooking.getBookingId(), dto.getPaymentIntentId());
@@ -250,6 +348,40 @@ public class BookingController {
           .body(Map.of("error", e.getMessage(),
               "paymentIntentId", dto.getPaymentIntentId(),
               "timestamp", java.time.LocalDateTime.now()));
+    }
+  }
+
+  @GetMapping("/{id}/can-cancel")
+  @Operation(summary = "Check if booking can be cancelled", description = "Check if a booking can be cancelled based on the 6-hour rule")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Cancellation eligibility checked", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Boolean.class))),
+      @ApiResponse(responseCode = "404", description = "Booking not found")
+  })
+  @SecurityRequirement(name = "Bearer Authentication")
+  public ResponseEntity<Boolean> canCancelBooking(
+      @Parameter(description = "Unique identifier of the booking to check", required = true) @PathVariable Long id) {
+    try {
+      boolean canCancel = bookingService.canCancelBooking(id);
+      return ResponseEntity.ok(canCancel);
+    } catch (RuntimeException e) {
+      return ResponseEntity.notFound().build();
+    }
+  }
+
+  @GetMapping("/{id}/cancellation-deadline")
+  @Operation(summary = "Get cancellation deadline", description = "Get the deadline by which a booking must be cancelled (6 hours before booking time)")
+  @ApiResponses(value = {
+      @ApiResponse(responseCode = "200", description = "Cancellation deadline retrieved", content = @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))),
+      @ApiResponse(responseCode = "404", description = "Booking not found")
+  })
+  @SecurityRequirement(name = "Bearer Authentication")
+  public ResponseEntity<String> getCancellationDeadline(
+      @Parameter(description = "Unique identifier of the booking", required = true) @PathVariable Long id) {
+    try {
+      LocalDateTime deadline = bookingService.getCancellationDeadline(id);
+      return ResponseEntity.ok(deadline.toString());
+    } catch (RuntimeException e) {
+      return ResponseEntity.notFound().build();
     }
   }
 

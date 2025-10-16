@@ -74,6 +74,37 @@ public class NotificationService {
     notificationRepository.save(notification);
   }
 
+  public void createBookingCancellationNotification(Booking booking, Double refundAmount, String refundReason) {
+    User customer = booking.getCustomer();
+    if (customer == null)
+      return;
+
+    // Get venue name from first booking court
+    String venueName = "Unknown Venue";
+    if (booking.getBookingCourts() != null && !booking.getBookingCourts().isEmpty()) {
+      venueName = booking.getBookingCourts().get(0).getCourt().getVenue().getName();
+    }
+
+    // Format refund amount
+    String refundText = "";
+    if (refundAmount != null && refundAmount > 0) {
+      refundText = String.format("\n💰 Refund Amount: LKR %.2f", refundAmount);
+    } else {
+      refundText = "\n💰 No refund available (cancelled too close to booking time)";
+    }
+
+    Notification notification = new Notification();
+    notification.setUser(customer);
+    notification.setTitle("Booking Cancelled");
+    notification.setMessage(String.format("Your booking at %s has been cancelled successfully.%s\n\n📋 Reason: %s",
+        venueName, refundText, refundReason != null ? refundReason : "Booking cancelled by customer"));
+    notification.setType(Notification.NotificationType.BOOKING_CANCELLED);
+    notification.setRelatedEntityType("BOOKING");
+    notification.setRelatedEntityId(booking.getBookingId());
+
+    notificationRepository.save(notification);
+  }
+
   public List<NotificationDTO> getUserNotifications(Long userId) {
     User user = userRepository.findById(userId)
         .orElseThrow(() -> new RuntimeException("User not found"));
@@ -161,5 +192,12 @@ public class NotificationService {
     // This method is called by PaymentService but we don't need to implement it
     // since we're using in-app notifications instead of email notifications
     // Payment failure notifications can be added here if needed
+  }
+
+  public void sendRefundConfirmation(String customerEmail, String customerName, Double refundAmount, String currency,
+      String refundReason, String bookingId) {
+    // This method is called by PaymentService but we don't need to implement it
+    // since we're using in-app notifications instead of email notifications
+    // Refund confirmation notifications can be added here if needed
   }
 }

@@ -33,6 +33,8 @@ public class OwnerDashboardService {
                 if (venue == null) {
                         DashboardSummaryDTO emptySummary = new DashboardSummaryDTO();
                         emptySummary.setTotalRevenue(0.0);
+                        emptySummary.setTotalRefunds(0.0);
+                        emptySummary.setNetRevenue(0.0);
                         emptySummary.setTotalBookings(0);
                         emptySummary.setTotalCancellations(0);
                         emptySummary.setTotalEquipmentRentals(0);
@@ -54,7 +56,20 @@ public class OwnerDashboardService {
                                                                                                 .getVenue()
                                                                                                 .getVenueId())))
                                 .collect(Collectors.toList());
-                double totalRevenue = bookings.stream().mapToDouble(Booking::getTotalCost).sum();
+                double totalRevenue = bookings.stream()
+                                .filter(b -> b.getBookingStatus() == Booking.BookingStatus.BOOKED)
+                                .mapToDouble(Booking::getTotalCost)
+                                .sum();
+
+                // Calculate total refunds from cancelled bookings
+                double totalRefunds = bookings.stream()
+                                .filter(b -> b.getBookingStatus() == Booking.BookingStatus.CANCELLED)
+                                .filter(b -> b.getPayment() != null && b.getPayment().getRefundAmount() != null)
+                                .mapToDouble(b -> b.getPayment().getRefundAmount())
+                                .sum();
+
+                double netRevenue = totalRevenue - totalRefunds;
+
                 int totalBookings = bookings.size();
                 int totalCancellations = (int) bookings.stream()
                                 .filter(b -> b.getBookingStatus() == Booking.BookingStatus.CANCELLED)
@@ -69,6 +84,8 @@ public class OwnerDashboardService {
 
                 DashboardSummaryDTO summary = new DashboardSummaryDTO();
                 summary.setTotalRevenue(totalRevenue);
+                summary.setTotalRefunds(totalRefunds);
+                summary.setNetRevenue(netRevenue);
                 summary.setTotalBookings(totalBookings);
                 summary.setTotalCancellations(totalCancellations);
                 summary.setTotalEquipmentRentals(totalEquipmentRentals);
@@ -80,9 +97,14 @@ public class OwnerDashboardService {
 
         public KPIsDTO calculateKPIs(List<Booking> bookings, List<Venue> venues) {
                 KPIsDTO kpis = new KPIsDTO();
-                double totalRevenue = bookings.stream().mapToDouble(Booking::getTotalCost).sum();
-                int totalBookings = bookings.size();
-                kpis.setAverageBookingValue(totalBookings == 0 ? 0 : totalRevenue / totalBookings);
+                double totalRevenue = bookings.stream()
+                                .filter(b -> b.getBookingStatus() == Booking.BookingStatus.BOOKED)
+                                .mapToDouble(Booking::getTotalCost)
+                                .sum();
+                int confirmedBookings = (int) bookings.stream()
+                                .filter(b -> b.getBookingStatus() == Booking.BookingStatus.BOOKED)
+                                .count();
+                kpis.setAverageBookingValue(confirmedBookings == 0 ? 0 : totalRevenue / confirmedBookings);
                 // Occupancy rate: booked slots / total slots
                 int totalSlots = venues.stream().flatMap(v -> v.getCourts().stream()).mapToInt(c -> c.getSlots().size())
                                 .sum();
@@ -109,9 +131,14 @@ public class OwnerDashboardService {
                 RevenueStatsDTO stats = new RevenueStatsDTO();
                 stats.setPeriodStart(start);
                 stats.setPeriodEnd(end);
-                stats.setTotalRevenue(bookings.stream().mapToDouble(Booking::getTotalCost).sum());
+                stats.setTotalRevenue(bookings.stream()
+                                .filter(b -> b.getBookingStatus() == Booking.BookingStatus.BOOKED)
+                                .mapToDouble(Booking::getTotalCost)
+                                .sum());
                 stats.setTotalProfit(stats.getTotalRevenue()); // Placeholder
-                stats.setBookingCount(bookings.size());
+                stats.setBookingCount((int) bookings.stream()
+                                .filter(b -> b.getBookingStatus() == Booking.BookingStatus.BOOKED)
+                                .count());
                 return stats;
         }
 

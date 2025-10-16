@@ -6,10 +6,12 @@ import java.util.List;
 @Data
 public class DashboardSummaryDTO {
     private double totalRevenue;
+    private double totalRefunds;
+    private double netRevenue;
     private int totalBookings;
     private int totalCancellations;
     private int totalEquipmentRentals;
     private List<KPIsDTO> kpis;
     private List<RevenueStatsDTO> revenueStats;
     private List<AlertDTO> alerts;
-} 
+}

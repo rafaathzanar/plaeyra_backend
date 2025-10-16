@@ -37,6 +37,9 @@ public class BookingWithPaymentDTO {
   @NotNull(message = "Payment intent ID is required")
   private String paymentIntentId;
 
+  // Total cost calculated by frontend (includes dynamic pricing)
+  private Double totalCost;
+
   @Data
   public static class CourtBookingDTO {
     @NotNull(message = "Court ID is required")

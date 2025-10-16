@@ -6,12 +6,14 @@ import com.stripe.model.PaymentIntent;
 import com.stripe.param.PaymentIntentCreateParams;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.Map;
 
 @Service
+@Slf4j
 public class StripeService {
 
   @Value("${stripe.secret-key}")
@@ -83,6 +85,73 @@ public class StripeService {
    */
   public String getPublishableKey() {
     return publishableKey;
+  }
+
+  /**
+   * Create a refund for a payment
+   */
+  public com.stripe.model.Refund createRefund(String paymentIntentId, Long refundAmount, String reason)
+      throws StripeException {
+    log.info("=== STRIPE REFUND DEBUG ===");
+    log.info("Creating refund for payment intent: {}, amount: {} cents, reason: {}",
+        paymentIntentId, refundAmount, reason);
+
+    // First, get the charge ID from the payment intent
+    PaymentIntent paymentIntent = PaymentIntent.retrieve(paymentIntentId);
+    log.info("Retrieved payment intent: {}, status: {}", paymentIntent.getId(), paymentIntent.getStatus());
+
+    if (paymentIntent.getLatestCharge() == null) {
+      log.error("No charge found for payment intent: {}", paymentIntentId);
+      throw new RuntimeException("No charge found for payment intent: " + paymentIntentId);
+    }
+
+    String chargeId = paymentIntent.getLatestCharge();
+    log.info("Using charge ID: {}", chargeId);
+
+    // Create refund parameters
+    Map<String, Object> refundParams = new HashMap<>();
+    refundParams.put("charge", chargeId);
+    refundParams.put("amount", refundAmount); // Amount in cents
+    refundParams.put("reason", "requested_by_customer"); // Stripe only accepts: duplicate, fraudulent, or
+                                                         // requested_by_customer
+    refundParams.put("metadata", Map.of(
+        "source", "playera_booking_app",
+        "refund_reason", reason != null ? reason : "booking_cancellation",
+        "booking_cancellation_reason", reason != null ? reason : "booking_cancellation"));
+
+    log.info("Refund parameters: {}", refundParams);
+
+    com.stripe.model.Refund refund = com.stripe.model.Refund.create(refundParams);
+    log.info("Stripe refund created: ID={}, Status={}, Amount={}",
+        refund.getId(), refund.getStatus(), refund.getAmount());
+    log.info("=== END STRIPE REFUND DEBUG ===");
+
+    return refund;
+  }
+
+  /**
+   * Retrieve a refund by ID
+   */
+  public com.stripe.model.Refund retrieveRefund(String refundId) throws StripeException {
+    return com.stripe.model.Refund.retrieve(refundId);
+  }
+
+  /**
+   * List refunds for a payment intent
+   */
+  public com.stripe.model.RefundCollection listRefunds(String paymentIntentId) throws StripeException {
+    PaymentIntent paymentIntent = PaymentIntent.retrieve(paymentIntentId);
+
+    if (paymentIntent.getLatestCharge() == null) {
+      throw new RuntimeException("No charge found for payment intent: " + paymentIntentId);
+    }
+
+    String chargeId = paymentIntent.getLatestCharge();
+
+    Map<String, Object> params = new HashMap<>();
+    params.put("charge", chargeId);
+
+    return com.stripe.model.Refund.list(params);
   }
 
   /**

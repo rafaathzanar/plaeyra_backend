@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Isolation;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,12 @@ public class BookingService {
     private EquipmentRepository equipmentRepository;
 
     @Autowired
+    private PaymentService paymentService;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
     private BookingCourtRepository bookingCourtRepository;
 
     @Autowired
@@ -47,9 +54,6 @@ public class BookingService {
     private SlotRepository slotRepository;
 
     @Autowired
-    private PaymentService paymentService;
-
-    @Autowired
     private VenueRepository venueRepository;
 
     @Autowired
@@ -57,9 +61,6 @@ public class BookingService {
 
     @Autowired
     private BookingTimeSlotRepository bookingTimeSlotRepository;
-
-    @Autowired
-    private NotificationService notificationService;
 
     @Autowired
     private BookingValidationService bookingValidationService;
@@ -96,7 +97,15 @@ public class BookingService {
             booking.setDuration((int) Math.round(totalDuration));
 
             booking.setBookingStatus(Booking.BookingStatus.BOOKED); // Set to BOOKED for successful bookings
-            booking.setTotalCost(0.0);
+
+            // Use totalCost from frontend if available, otherwise calculate it
+            if (dto.getTotalCost() != null && dto.getTotalCost() > 0) {
+                booking.setTotalCost(dto.getTotalCost());
+                log.info("Using frontend calculated total cost for booking: {}", dto.getTotalCost());
+            } else {
+                booking.setTotalCost(0.0); // Will be calculated later
+                log.info("Frontend total cost not provided, will calculate from backend");
+            }
             booking.setSpecialRequests(dto.getSpecialRequests());
 
             // Process court bookings with slot validation
@@ -178,7 +187,37 @@ public class BookingService {
             }
 
             booking.setBookingEquipments(bookingEquipments);
-            booking.setTotalCost(totalCourtCost.add(totalEquipmentCost).doubleValue());
+
+            // Calculate total cost from time slot ranges if available, otherwise use court
+            // booking duration
+            // Only recalculate total cost if not provided by frontend
+            if (booking.getTotalCost() == 0.0) {
+                log.info("Recalculating total cost from backend (frontend cost not provided)");
+                // Calculate total cost from time slot ranges if available, otherwise use court
+                // booking duration
+                BigDecimal finalTotalCost;
+                if (dto.getTimeSlotRanges() != null && !dto.getTimeSlotRanges().isEmpty()) {
+                    // Use time slot ranges for accurate cost calculation
+                    BigDecimal timeSlotCost = BigDecimal.ZERO;
+                    for (BookingRequestDTO.TimeSlotRangeDTO range : dto.getTimeSlotRanges()) {
+                        if (!dto.getCourtBookings().isEmpty()) {
+                            Long courtId = dto.getCourtBookings().get(0).getCourtId();
+                            Court court = courtRepository.findById(courtId)
+                                    .orElseThrow(() -> new RuntimeException("Court not found: " + courtId));
+                            timeSlotCost = timeSlotCost
+                                    .add(court.getPricePerHour().multiply(BigDecimal.valueOf(range.getDuration())));
+                        }
+                    }
+                    finalTotalCost = timeSlotCost.add(totalEquipmentCost);
+                } else {
+                    // Fallback to original calculation for continuous bookings
+                    finalTotalCost = totalCourtCost.add(totalEquipmentCost);
+                }
+                booking.setTotalCost(finalTotalCost.doubleValue());
+                log.info("Backend calculated total cost: {}", finalTotalCost.doubleValue());
+            } else {
+                log.info("Using frontend provided total cost: {}", booking.getTotalCost());
+            }
 
             // Process time slot ranges (for discontinuous slots)
             List<BookingTimeSlot> bookingTimeSlots = new ArrayList<>();
@@ -217,6 +256,14 @@ public class BookingService {
             }
 
             booking.setBookingTimeSlots(bookingTimeSlots);
+
+            // Link payment if provided
+            if (dto.getPaymentId() != null) {
+                Payment payment = paymentRepository.findById(dto.getPaymentId())
+                        .orElseThrow(() -> new RuntimeException("Payment not found: " + dto.getPaymentId()));
+                booking.setPayment(payment);
+                log.info("Linked payment ID {} to booking", dto.getPaymentId());
+            }
 
             // Save booking and related entities
             Booking savedBooking = bookingRepository.save(booking);
@@ -506,6 +553,54 @@ public class BookingService {
         return debugInfo;
     }
 
+    /**
+     * Get cancellation reason based on timing
+     */
+    private String getCancellationReason(LocalDateTime bookingDateTime, LocalDateTime currentTime) {
+        long hoursUntilBooking = java.time.Duration.between(currentTime, bookingDateTime).toHours();
+
+        if (hoursUntilBooking >= 24) {
+            return "Cancelled 24+ hours before booking";
+        } else if (hoursUntilBooking >= 6) {
+            return "Cancelled 6-24 hours before booking";
+        } else {
+            return "Cancelled less than 6 hours before booking";
+        }
+    }
+
+    /**
+     * Check if a booking can be cancelled (6 hours before booking time)
+     */
+    public boolean canCancelBooking(Long bookingId) {
+        try {
+            Booking booking = bookingRepository.findById(bookingId)
+                    .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+            if ("CANCELLED".equals(booking.getBookingStatus())) {
+                return false;
+            }
+
+            LocalDateTime bookingDateTime = booking.getBookingDate();
+            LocalDateTime currentTime = LocalDateTime.now();
+            LocalDateTime sixHoursBeforeBooking = bookingDateTime.minusHours(6);
+
+            return currentTime.isBefore(sixHoursBeforeBooking);
+        } catch (Exception e) {
+            log.error("Error checking if booking can be cancelled: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get cancellation deadline for a booking
+     */
+    public LocalDateTime getCancellationDeadline(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        return booking.getBookingDate().minusHours(6);
+    }
+
     @Transactional
     public void cancelBooking(Long id) {
         Booking booking = bookingRepository.findById(id)
@@ -513,6 +608,16 @@ public class BookingService {
 
         if ("CANCELLED".equals(booking.getBookingStatus())) {
             throw new RuntimeException("Booking is already cancelled");
+        }
+
+        // Check if cancellation is allowed (6 hours before booking time)
+        LocalDateTime bookingDateTime = booking.getBookingDate();
+        LocalDateTime currentTime = LocalDateTime.now();
+        LocalDateTime sixHoursBeforeBooking = bookingDateTime.minusHours(6);
+
+        if (currentTime.isAfter(sixHoursBeforeBooking)) {
+            throw new RuntimeException(
+                    "Booking cannot be cancelled. Cancellation must be done at least 6 hours before the booking time.");
         }
 
         // Release all slots associated with this booking
@@ -534,16 +639,56 @@ public class BookingService {
                 // Mark equipment as returned for refund processing
                 bookingEquipment.markAsReturned();
                 bookingEquipmentRepository.save(bookingEquipment);
-
-                // TODO: Process refund based on venue-specific policies
-                // This would integrate with PaymentService for actual refund processing
-                // Refund amount could be calculated based on cancellation time and policies
             }
+        }
+
+        // Process refund if payment exists
+        if (booking.getPayment() != null) {
+            try {
+                // Calculate refund amount based on cancellation policy
+                Double refundAmount = paymentService.calculateRefundAmount(id, "Booking cancelled by customer");
+
+                if (refundAmount > 0) {
+                    // Process refund through Stripe
+                    paymentService.processRefund(
+                            booking.getPayment().getPaymentId(),
+                            refundAmount,
+                            "Booking cancelled - " + getCancellationReason(bookingDateTime, currentTime));
+                    log.info("Refund processed for booking {}: LKR {}", id, refundAmount);
+                } else {
+                    log.info("No refund available for booking {} - cancelled too close to booking time", id);
+                }
+
+                // Create cancellation notification with refund details
+                notificationService.createBookingCancellationNotification(
+                        booking,
+                        refundAmount,
+                        getCancellationReason(bookingDateTime, currentTime));
+
+            } catch (Exception e) {
+                log.error("Failed to process refund for booking {}: {}", id, e.getMessage());
+                // Don't fail the cancellation if refund fails
+
+                // Still create notification even if refund fails
+                notificationService.createBookingCancellationNotification(
+                        booking,
+                        0.0,
+                        "Booking cancelled - refund processing failed");
+            }
+        } else {
+            // Create notification even if no payment exists
+            notificationService.createBookingCancellationNotification(
+                    booking,
+                    0.0,
+                    getCancellationReason(bookingDateTime, currentTime));
         }
 
         // Update booking status
         booking.setBookingStatus(Booking.BookingStatus.CANCELLED);
         bookingRepository.save(booking);
+
+        log.info("Booking {} cancelled successfully. Booking time: {}, Cancellation time: {}",
+                id, bookingDateTime, currentTime);
     }
 
     // New methods for real-time availability

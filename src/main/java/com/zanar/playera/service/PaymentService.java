@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Transactional
+@Slf4j
 public class PaymentService {
 
   @Autowired
@@ -51,6 +53,46 @@ public class PaymentService {
 
   @Value("${app.stripe-fee-percentage:0.029}")
   private double stripeFeePercentage;
+
+  /**
+   * Create payment without booking (for existing payment intents)
+   */
+  public PaymentResponseDTO createPaymentFromIntent(PaymentRequestDTO dto, Long customerId) throws StripeException {
+    log.info("=== CREATE PAYMENT FROM INTENT DEBUG ===");
+    log.info("Creating payment for intent: {}, amount: {}, status: {}, customerId: {}",
+        dto.getTransactionId(), dto.getAmount(), dto.getStatus(), customerId);
+
+    // Get customer details
+    Customer customer = customerRepository.findById(customerId)
+        .orElseThrow(() -> new RuntimeException("Customer not found: " + customerId));
+
+    // Create payment entity without booking (will be linked later)
+    Payment payment = new Payment();
+    payment.setAmount(dto.getAmount());
+    payment.setCurrency(defaultCurrency);
+    payment.setStatus(
+        Payment.PaymentStatus.valueOf(dto.getStatus() != null ? dto.getStatus().toUpperCase() : "SUCCEEDED"));
+    payment.setPaymentMethod(
+        Payment.PaymentMethod.valueOf(dto.getPaymentMethod() != null ? dto.getPaymentMethod().toUpperCase() : "CARD"));
+    payment.setPaymentDate(dto.getPaymentDate() != null ? dto.getPaymentDate() : LocalDateTime.now());
+    payment.setDescription(dto.getDescription() != null ? dto.getDescription() : "Payment for booking");
+    payment.setTransactionId(dto.getTransactionId());
+    payment.setStripePaymentIntentId(dto.getTransactionId()); // Use transaction ID as payment intent ID
+    payment.setCustomerEmail(customer.getEmail());
+    payment.setCustomerName(customer.getName());
+    payment.setCustomerPhone(customer.getPhone());
+
+    // Calculate fees
+    payment.calculateFees(platformFeePercentage, stripeFeePercentage);
+
+    // Save payment
+    Payment savedPayment = paymentRepository.save(payment);
+    log.info("Payment created with ID: {}, status: {}, customer: {} ({})",
+        savedPayment.getPaymentId(), savedPayment.getStatus(), customer.getName(), customer.getEmail());
+    log.info("=== END CREATE PAYMENT FROM INTENT DEBUG ===");
+
+    return PaymentMapper.toPaymentResponseDTO(savedPayment);
+  }
 
   /**
    * Create a payment for a booking
@@ -107,6 +149,9 @@ public class PaymentService {
    * Process payment confirmation
    */
   public PaymentResponseDTO confirmPayment(String paymentIntentId) throws StripeException {
+    log.info("=== PAYMENT CONFIRMATION DEBUG ===");
+    log.info("Confirming payment for intent: {}", paymentIntentId);
+
     // Mock payment confirmation - in real implementation, this would call Stripe
     // API
     // For now, we'll simulate a successful payment
@@ -114,8 +159,14 @@ public class PaymentService {
     Payment payment = paymentRepository.findByStripePaymentIntentId(paymentIntentId)
         .orElseThrow(() -> new RuntimeException("Payment not found"));
 
+    log.info("Found payment: ID={}, Current Status={}, Booking ID={}",
+        payment.getPaymentId(), payment.getStatus(),
+        payment.getBooking() != null ? payment.getBooking().getBookingId() : "null");
+
     // Mock successful payment confirmation
     payment.markAsProcessed();
+    log.info("Payment marked as processed, new status: {}", payment.getStatus());
+
     // Set mock charge ID and receipt URL
     String chargeId = paymentIntentId; // Use payment intent ID as charge ID for now
     payment.setStripeChargeId(chargeId);
@@ -125,12 +176,15 @@ public class PaymentService {
     payment.setReceiptUrl(receiptUrl);
 
     Payment savedPayment = paymentRepository.save(payment);
+    log.info("Payment saved to database with status: {}", savedPayment.getStatus());
 
     // Update booking status
     Booking booking = payment.getBooking();
     if (booking != null) {
+      log.info("Updating booking status from {} to BOOKED", booking.getBookingStatus());
       booking.setBookingStatus(Booking.BookingStatus.BOOKED);
       bookingRepository.save(booking);
+      log.info("Booking status updated successfully");
 
       // Award loyalty points
       loyaltyProgramService.awardPointsForBooking(
@@ -139,36 +193,62 @@ public class PaymentService {
 
       // Send confirmation notifications
       sendPaymentConfirmationNotifications(payment);
+    } else {
+      log.warn("No booking found for payment: {}", payment.getPaymentId());
     }
 
-    return PaymentMapper.toPaymentResponseDTO(savedPayment);
+    PaymentResponseDTO response = PaymentMapper.toPaymentResponseDTO(savedPayment);
+    log.info("Payment confirmation completed. Response status: {}", response.getStatus());
+    log.info("=== END PAYMENT CONFIRMATION DEBUG ===");
+
+    return response;
   }
 
   /**
-   * Process refund
+   * Process refund with real Stripe integration
    */
   public PaymentResponseDTO processRefund(Long paymentId, Double refundAmount, String reason) throws StripeException {
+    log.info("=== PROCESS REFUND DEBUG ===");
+    log.info("Processing refund for payment ID: {}, amount: {}, reason: {}", paymentId, refundAmount, reason);
+
     Payment payment = paymentRepository.findById(paymentId)
         .orElseThrow(() -> new RuntimeException("Payment not found"));
+
+    log.info("Found payment: ID={}, Amount={}, Status={}, CanRefund={}",
+        payment.getPaymentId(), payment.getAmount(), payment.getStatus(), payment.canRefund());
 
     if (!payment.canRefund()) {
       throw new RuntimeException("Payment cannot be refunded");
     }
 
-    // Mock refund processing (in real implementation, this would call Stripe API)
-    // For now, we'll simulate a successful refund
+    // Convert refund amount to cents for Stripe
+    Long refundAmountInCents = Math.round(refundAmount * 100);
+    log.info("Refund amount in cents: {}", refundAmountInCents);
 
-    // Update payment status
+    // Create refund in Stripe
+    com.stripe.model.Refund stripeRefund = stripeService.createRefund(
+        payment.getStripePaymentIntentId(),
+        refundAmountInCents,
+        reason);
+
+    log.info("Stripe refund created: ID={}, Status={}", stripeRefund.getId(), stripeRefund.getStatus());
+
+    // Update payment status based on refund amount
     if (refundAmount.equals(payment.getAmount())) {
       payment.markAsRefunded(refundAmount, reason);
+      log.info("Payment marked as fully refunded");
     } else {
       payment.markAsPartiallyRefunded(refundAmount, reason);
+      log.info("Payment marked as partially refunded");
     }
 
-    payment.setStripeRefundId("mock_refund_" + System.currentTimeMillis());
+    // Store Stripe refund ID
+    payment.setStripeRefundId(stripeRefund.getId());
     payment.setRefundNotes(reason);
 
     Payment savedPayment = paymentRepository.save(payment);
+    log.info("Payment saved with refund amount: {}, refund status: {}",
+        savedPayment.getRefundAmount(), savedPayment.getStatus());
 
     // Update booking status if full refund
     if (payment.isFullRefund()) {
@@ -176,10 +256,74 @@ public class PaymentService {
       if (booking != null) {
         booking.setBookingStatus(Booking.BookingStatus.CANCELLED);
         bookingRepository.save(booking);
+        log.info("Booking status updated to CANCELLED");
       }
     }
 
+    // Send refund notification
+    sendRefundNotification(savedPayment);
+
+    log.info("=== END PROCESS REFUND DEBUG ===");
     return PaymentMapper.toPaymentResponseDTO(savedPayment);
+  }
+
+  /**
+   * Calculate refund amount based on cancellation policy
+   */
+  public Double calculateRefundAmount(Long bookingId, String cancellationReason) {
+    Booking booking = bookingRepository.findById(bookingId)
+        .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+    Payment payment = booking.getPayment();
+    if (payment == null) {
+      return 0.0;
+    }
+
+    LocalDateTime bookingDateTime = booking.getBookingDate();
+    LocalDateTime currentTime = LocalDateTime.now();
+    long hoursUntilBooking = java.time.Duration.between(currentTime, bookingDateTime).toHours();
+
+    // Get venue refund policy
+    String refundPolicy = null;
+    if (booking.getBookingCourts() != null && !booking.getBookingCourts().isEmpty()) {
+      refundPolicy = booking.getBookingCourts().get(0).getCourt().getVenue().getRefundPolicy();
+    }
+
+    // Default refund policy based on time
+    double refundPercentage = 0.0;
+
+    if (hoursUntilBooking >= 24) {
+      refundPercentage = 1.0; // Full refund if cancelled 24+ hours before
+    } else if (hoursUntilBooking >= 6) {
+      refundPercentage = 0.5; // 50% refund if cancelled 6-24 hours before
+    } else {
+      refundPercentage = 0.0; // No refund if cancelled less than 6 hours before
+    }
+
+    // Override with venue-specific policy if available
+    if (refundPolicy != null && !refundPolicy.isEmpty()) {
+      // Parse venue refund policy (could be JSON or simple text)
+      // For now, use default policy
+    }
+
+    return payment.getAmount() * refundPercentage;
+  }
+
+  /**
+   * Send refund notification
+   */
+  private void sendRefundNotification(Payment payment) {
+    try {
+      notificationService.sendRefundConfirmation(
+          payment.getCustomerEmail(),
+          payment.getCustomerName(),
+          payment.getRefundAmount(),
+          payment.getCurrency(),
+          payment.getRefundReason(),
+          payment.getBooking() != null ? payment.getBooking().getBookingId().toString() : "N/A");
+    } catch (Exception e) {
+      System.err.println("Failed to send refund notification: " + e.getMessage());
+    }
   }
 
   /**
