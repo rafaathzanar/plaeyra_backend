@@ -28,10 +28,12 @@ public class AnalyticsResponseDTO {
   private Map<Long, Double> courtOccupancy;
   private Map<Long, Integer> courtBookings;
   private Map<Long, Double> courtRevenueMap;
+  private Map<Long, String> courtNames;
 
   // Equipment metrics
   private Map<Long, Integer> equipmentUsage;
   private Map<Long, Double> equipmentRevenueMap;
+  private Map<Long, String> equipmentNames;
 
   // Time analysis
   private List<String> peakHours;
