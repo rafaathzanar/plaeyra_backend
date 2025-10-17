@@ -114,7 +114,7 @@ public class AnalyticsController {
   public ResponseEntity<String> exportMonthlyRevenueReport(@PathVariable Long venueId) {
     try {
       AnalyticsResponseDTO analytics = analyticsService.getVenueAnalytics(venueId, "month");
-      String csvContent = generateRevenueCSV(analytics, "Monthly");
+      String csvContent = generateRevenueCSV(analytics, "Monthly", venueId);
 
       String fileName = String.format("monthly_revenue_report_%s_%s.csv",
           venueId, LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM")));
@@ -146,43 +146,9 @@ public class AnalyticsController {
   public ResponseEntity<String> exportWeeklyRevenueReport(@PathVariable Long venueId) {
     try {
       AnalyticsResponseDTO analytics = analyticsService.getVenueAnalytics(venueId, "week");
-      String csvContent = generateRevenueCSV(analytics, "Weekly");
+      String csvContent = generateRevenueCSV(analytics, "Weekly", venueId);
 
       String fileName = String.format("weekly_revenue_report_%s_%s.csv",
-          venueId, LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
-
-      HttpHeaders headers = new HttpHeaders();
-      headers.setContentType(MediaType.valueOf("text/csv; charset=UTF-8"));
-      headers.setContentDispositionFormData("attachment", fileName);
-      headers.add("Cache-Control", "no-cache, no-store, must-revalidate");
-      headers.add("Pragma", "no-cache");
-      headers.add("Expires", "0");
-
-      return ResponseEntity.ok()
-          .headers(headers)
-          .body(csvContent);
-    } catch (RuntimeException e) {
-      return ResponseEntity.notFound().build();
-    }
-  }
-
-  @GetMapping("/venue/{venueId}/export/custom")
-  @PreAuthorize("hasRole('VENUE_OWNER') or hasRole('ADMIN')")
-  @Operation(summary = "Export custom revenue report", description = "Exports revenue report for custom date range in CSV format")
-  @ApiResponses(value = {
-      @ApiResponse(responseCode = "200", description = "CSV report generated successfully"),
-      @ApiResponse(responseCode = "403", description = "Access denied - insufficient permissions"),
-      @ApiResponse(responseCode = "404", description = "Venue not found")
-  })
-  @SecurityRequirement(name = "Bearer Authentication")
-  public ResponseEntity<String> exportCustomRevenueReport(
-      @PathVariable Long venueId,
-      @RequestParam(defaultValue = "month") String dateRange) {
-    try {
-      AnalyticsResponseDTO analytics = analyticsService.getVenueAnalytics(venueId, dateRange);
-      String csvContent = generateRevenueCSV(analytics, "Custom");
-
-      String fileName = String.format("custom_revenue_report_%s_%s.csv",
           venueId, LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
 
       HttpHeaders headers = new HttpHeaders();
@@ -246,7 +212,7 @@ public class AnalyticsController {
     }
   }
 
-  private String generateRevenueCSV(AnalyticsResponseDTO analytics, String reportType) {
+  private String generateRevenueCSV(AnalyticsResponseDTO analytics, String reportType, Long venueId) {
     StringBuilder csv = new StringBuilder();
 
     // Add BOM for proper UTF-8 encoding
@@ -348,6 +314,71 @@ public class AnalyticsController {
       for (String offPeakHour : analytics.getOffPeakHours()) {
         csv.append("\"").append(offPeakHour).append("\"\n");
       }
+      csv.append("\n");
+    }
+
+    // Booking Details Section
+    csv.append("BOOKING DETAILS\n");
+    csv.append(
+        "Booking ID,Customer Name,Customer Email,Court Name,Booking Date,Booking Time,Status,Total Amount,Payment Status,Equipment Count,Equipment Details\n");
+
+    // Get detailed booking information
+    List<Booking> allBookings = bookingRepository.findByVenueIdWithDetails(venueId);
+
+    for (Booking booking : allBookings) {
+      // Basic booking info
+      String bookingId = booking.getBookingId().toString();
+      String customerName = booking.getCustomer() != null ? booking.getCustomer().getName() : "Unknown";
+      String customerEmail = booking.getCustomer() != null ? booking.getCustomer().getEmail() : "Unknown";
+
+      // Court information
+      String courtName = "Unknown";
+      if (booking.getBookingCourts() != null && !booking.getBookingCourts().isEmpty()) {
+        courtName = booking.getBookingCourts().get(0).getCourt().getCourtName();
+      }
+
+      // Date and time
+      String bookingDate = booking.getBookingDate() != null ? booking.getBookingDate().toLocalDate().toString()
+          : "Unknown";
+      String bookingTime = booking.getBookingDate() != null ? booking.getBookingDate().toLocalTime().toString()
+          : "Unknown";
+
+      // Status and amount
+      String status = booking.getBookingStatus() != null ? booking.getBookingStatus().toString() : "Unknown";
+      String totalAmount = String.format("%.2f", booking.getTotalCost());
+
+      // Payment status
+      String paymentStatus = "Unknown";
+      if (booking.getPayment() != null) {
+        paymentStatus = booking.getPayment().getStatus() != null ? booking.getPayment().getStatus().toString()
+            : "Unknown";
+      }
+
+      // Equipment information
+      int equipmentCount = booking.getBookingEquipments() != null ? booking.getBookingEquipments().size() : 0;
+      StringBuilder equipmentDetails = new StringBuilder();
+      if (booking.getBookingEquipments() != null && !booking.getBookingEquipments().isEmpty()) {
+        for (int i = 0; i < booking.getBookingEquipments().size(); i++) {
+          var be = booking.getBookingEquipments().get(i);
+          if (i > 0)
+            equipmentDetails.append("; ");
+          equipmentDetails.append(be.getEquipment() != null ? be.getEquipment().getName() : "Unknown")
+              .append(" (LKR ").append(String.format("%.2f", be.getTotalPrice())).append(")");
+        }
+      }
+
+      // Write booking row
+      csv.append("\"").append(bookingId).append("\",")
+          .append("\"").append(customerName).append("\",")
+          .append("\"").append(customerEmail).append("\",")
+          .append("\"").append(courtName).append("\",")
+          .append("\"").append(bookingDate).append("\",")
+          .append("\"").append(bookingTime).append("\",")
+          .append("\"").append(status).append("\",")
+          .append("LKR ").append(totalAmount).append(",")
+          .append("\"").append(paymentStatus).append("\",")
+          .append(equipmentCount).append(",")
+          .append("\"").append(equipmentDetails.toString()).append("\"\n");
     }
 
     return csv.toString();
