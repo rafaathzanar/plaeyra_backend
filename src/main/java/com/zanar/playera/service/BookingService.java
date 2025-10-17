@@ -45,6 +45,9 @@ public class BookingService {
     private NotificationService notificationService;
 
     @Autowired
+    private LoyaltyService loyaltyService;
+
+    @Autowired
     private BookingCourtRepository bookingCourtRepository;
 
     @Autowired
@@ -288,6 +291,17 @@ public class BookingService {
 
             // Update slot status to BOOKED for the booked time slots
             updateSlotsToBooked(savedBooking, dto);
+
+            // Process loyalty earning BEFORE loading relationships
+            try {
+                loyaltyService.earnFromBooking(customer.getUserId(), savedBooking.getTotalCost(),
+                        savedBooking.getBookingId().toString());
+                log.info("Loyalty rewards processed for booking: {}", savedBooking.getBookingId());
+            } catch (Exception e) {
+                log.error("Failed to process loyalty rewards for booking {}: {}",
+                        savedBooking.getBookingId(), e.getMessage());
+                // Don't fail the booking if loyalty processing fails
+            }
 
             // Load the booking with all relationships for proper DTO mapping
             Booking bookingWithDetails = bookingRepository.findById(savedBooking.getBookingId()).orElse(null);
