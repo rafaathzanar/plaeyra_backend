@@ -52,9 +52,9 @@ public class Customer extends User {
 
     public enum LoyaltyTier {
         BRONZE(0, 1.0, 0.02), // 0% discount, 2% gold coins
-        SILVER(500, 0.95, 0.03), // 5% discount, 3% gold coins
-        GOLD(2000, 0.90, 0.04), // 10% discount, 4% gold coins
-        PLATINUM(5000, 0.85, 0.05); // 15% discount, 5% gold coins
+        SILVER(1000, 0.95, 0.03), // 5% discount, 3% gold coins
+        GOLD(5000, 0.90, 0.04), // 10% discount, 4% gold coins
+        PLATINUM(15000, 0.85, 0.05); // 15% discount, 5% gold coins
 
         private final int threshold;
         private final double discountMultiplier;
